@@ -51,3 +51,25 @@ Statuts : À faire, En cours, Fait. Le backlog est mis à jour chaque soir.
 | J5   | Docker, qualité et livrables    | T28 à T33        | Projet lancé d'une commande, README, dossier PDF |
 
 Chaque soir : mise à jour des statuts du backlog, rédaction d'une partie du dossier, au moins trois commits poussés.
+
+## Risques
+
+| Risque | Probabilité | Impact | Parade |
+|--------|-------------|--------|--------|
+| La NOAA modifie la structure de sa page ou la rend inaccessible | Faible | Fort | Copie brute datée dans data/raw ; les tests tournent sur cette copie, sans internet ; un import en échec est enregistré « failed » et le site continue avec les données déjà en base |
+| La NOAA révise les valeurs récentes (jusqu'à deux mois après publication) | Forte | Faible | L'ETL met à jour les valeurs révisées au lieu de les dupliquer et les compte dans rows_updated ; l'interface signale que les valeurs récentes sont provisoires |
+| Docker Desktop ne peut plus être mis à jour sur macOS 12 | Moyenne | Moyen | Docker Compose v2.13 suffit au projet ; en dernier recours, PostgreSQL installé localement avec Homebrew |
+| Découverte de plusieurs outils en même temps (SQLAlchemy, Alembic, FastAPI, Recharts) | Moyenne | Moyen | Documentation officielle, avancée par petites étapes, un commit après chaque étape qui fonctionne |
+| Dépassement de temps sur l'interface (J4, la journée la plus chargée) | Moyenne | Moyen | La détection automatique des épisodes (Could) est abandonnée en premier ; le MVP reste prioritaire |
+| Interprétation scientifique abusive (prévision, classe « Super El Niño ») | Faible | Fort | Texte d'interprétation prudent, encadré des limites, seuils et durée toujours affichés |
+| Fuite d'un secret (mot de passe de la base) dans Git | Faible | Fort | .env ignoré par Git, modèle .env.example sans secret, vérification de git status avant chaque commit |
+| Perte du travail (panne de l'ordinateur) | Faible | Fort | Push sur GitHub au moins une fois par jour |
+
+## Arbitrages
+
+- **ONI plutôt que RONI** : l'ONI est l'indice de référence des études historiques ; le RONI a le même format et pourra être ajouté sans modifier le modèle de données.
+- **Import en ligne de commande plutôt qu'une interface d'administration** : un seul administrateur ; une interface imposerait une authentification et agrandirait la surface d'attaque.
+- **Comparaison de périodes choisies avant la détection automatique** : la comparaison suffit au MVP ; la détection est une extension, réalisée seulement s'il reste du temps.
+- **API et interface lancées hors Docker pendant le développement** : rechargement instantané et erreurs plus lisibles ; Docker Compose sert à la démonstration complète.
+- **Copie brute de la page NOAA conservée dans le dépôt** : quelques centaines de kilo-octets en plus, en échange de la traçabilité et de tests qui fonctionnent hors ligne.
+- **Filtre au mois près (AAAA-MM)** : les données ont une valeur par saison de trois mois ; une précision au jour n'aurait pas de sens.
