@@ -10,3 +10,8 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
+
+
+def get_session():
+    with SessionLocal() as session:
+        yield session
