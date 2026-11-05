@@ -19,3 +19,20 @@ class ObservationOut(BaseModel):
     season: str
     period_date: date
     value: float
+
+
+class PeriodStats(BaseModel):
+    start: date
+    end: date
+    seasons: int
+    peak_value: float
+    peak_season: str
+    peak_date: date
+    mean_value: float
+
+
+class ComparisonOut(BaseModel):
+    index: str
+    unit: str
+    period_a: PeriodStats
+    period_b: PeriodStats
