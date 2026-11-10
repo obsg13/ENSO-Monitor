@@ -126,3 +126,13 @@ td {
     align-items: stretch;
   }
 }
+
+.chart {
+  margin: 1rem 0 0;
+}
+
+.chart figcaption {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}

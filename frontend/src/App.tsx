@@ -4,6 +4,7 @@ import { ObservationsTable } from './components/ObservationsTable'
 import { PeriodFilter } from './components/PeriodFilter'
 import { SourceInfo } from './components/SourceInfo'
 import { useObservations } from './hooks/useObservations'
+import { OniChart } from './components/OniChart'
 
 const ONI_PAGE_URL =
   'https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/oni/v6/index.php'
@@ -39,7 +40,7 @@ function App() {
               <p>{observations.length} valeurs affichées.</p>
             )}
           </div>
-
+          {observations.length > 0 && <OniChart observations={observations} />}
           <ObservationsTable observations={observations} />
         </section>
       </main>
