@@ -44,13 +44,18 @@ export function OniChart({ observations }: OniChartProps) {
             label={{
               value: '+0,5 °C (El Niño)',
               position: 'insideBottomRight',
+              fill: '#4a4a4a',
             }}
           />
           <ReferenceLine
             y={-0.5}
             stroke="#0b5cad"
             strokeDasharray="6 4"
-            label={{ value: '-0,5 °C (La Niña)', position: 'insideTopRight' }}
+            label={{
+              value: '-0,5 °C (La Niña)',
+              position: 'insideTopRight',
+              fill: '#4a4a4a',
+            }}
           />
           <Line
             type="monotone"
