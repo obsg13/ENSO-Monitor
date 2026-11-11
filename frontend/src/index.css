@@ -136,3 +136,52 @@ td {
   font-size: 0.9rem;
   margin-top: 0.5rem;
 }
+
+main section + section {
+  margin-top: 2.5rem;
+}
+
+.comparison-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin: 1rem 0;
+}
+
+fieldset {
+  display: flex;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+}
+
+legend {
+  font-weight: 600;
+  padding: 0 0.25rem;
+}
+
+fieldset label {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 600px) {
+  .comparison-form,
+  fieldset {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.limits {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  border-left: 4px solid var(--accent);
+  background: #f2f6fb;
+}
+
+.limits h3 {
+  margin: 0.25rem 0;
+}

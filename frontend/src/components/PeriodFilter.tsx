@@ -1,12 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import type { Period } from '../api/types'
+import { toPeriod, validateMonths } from '../period'
 
 interface PeriodFilterProps {
   period: Period
   onApply: (period: Period) => void
 }
-
-const MONTH_PATTERN = /^\d{4}-\d{2}$/
 
 export function PeriodFilter({ period, onApply }: PeriodFilterProps) {
   const [start, setStart] = useState(period.start.slice(0, 7))
@@ -15,16 +14,11 @@ export function PeriodFilter({ period, onApply }: PeriodFilterProps) {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!MONTH_PATTERN.test(start) || !MONTH_PATTERN.test(end)) {
-      setError('Saisissez les dates au format AAAA-MM.')
-      return
+    const message = validateMonths(start, end)
+    setError(message)
+    if (!message) {
+      onApply(toPeriod(start, end))
     }
-    if (start > end) {
-      setError('La date de début doit précéder la date de fin.')
-      return
-    }
-    setError(null)
-    onApply({ start: `${start}-01`, end: `${end}-01` })
   }
 
   return (

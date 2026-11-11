@@ -5,6 +5,7 @@ import { PeriodFilter } from './components/PeriodFilter'
 import { SourceInfo } from './components/SourceInfo'
 import { useObservations } from './hooks/useObservations'
 import { OniChart } from './components/OniChart'
+import { EpisodeComparison } from './components/EpisodeComparison'
 
 const ONI_PAGE_URL =
   'https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/oni/v6/index.php'
@@ -42,6 +43,10 @@ function App() {
           </div>
           {observations.length > 0 && <OniChart observations={observations} />}
           <ObservationsTable observations={observations} />
+        </section>
+        <section aria-labelledby="compare-title">
+          <h2 id="compare-title">Comparer deux épisodes</h2>
+          <EpisodeComparison />
         </section>
       </main>
 
