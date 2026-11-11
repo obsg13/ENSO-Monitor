@@ -22,7 +22,11 @@ export function PeriodFilter({ period, onApply }: PeriodFilterProps) {
   }
 
   return (
-    <form className="period-filter" onSubmit={handleSubmit}>
+    <form
+      className="period-filter"
+      aria-label="Filtre de période"
+      onSubmit={handleSubmit}
+    >
       <label>
         Début
         <input
