@@ -15,6 +15,7 @@ Anomalie détectée et corrigée : Recharts affichait les textes des seuils en #
 ## Responsive
 
 Vérifié sur 375 px de large (iPhone SE, outils de développement de Chrome) : aucun défilement horizontal, champs empilés, courbe pleine largeur, tableaux lisibles.
+Anomalie détectée et corrigée : en passant d'une largeur desktop à une largeur mobile sans recharger la page, la courbe gardait sa largeur précédente et débordait ; le navigateur élargissait alors la page, laissant une bande blanche. Le conteneur de la courbe interdit désormais le débordement (`overflow: hidden`), ce qui permet au graphique de se redimensionner.
 
 ## Navigation au clavier
 
@@ -30,4 +31,4 @@ Toutes les actions (filtrer, ouvrir le tableau, comparer) sont réalisables au c
 
 ## Audit automatique
 
-Lighthouse (Chrome), catégorie Accessibilité : score XX/100 (capture : `docs/screenshots/lighthouse-accessibility.png`).
+Lighthouse (Chrome), catégorie Accessibilité : score 100/100 (capture : `docs/screenshots/lighthouse-accessibility.png`).
