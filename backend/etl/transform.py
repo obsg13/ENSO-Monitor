@@ -37,7 +37,11 @@ def clean_observations(raw: pd.DataFrame) -> pd.DataFrame:
     ]
     df = df.drop_duplicates(subset="period_date", keep="first")
 
-    return df[["season", "period_date", "value"]].sort_values("period_date").reset_index(drop=True)
+    return (
+        df[["season", "period_date", "value"]]
+        .sort_values("period_date")
+        .reset_index(drop=True)
+    )
 
 
 def transform(html: str) -> tuple[pd.DataFrame, int]:

@@ -11,7 +11,20 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-SEASONS = ("DJF", "JFM", "FMA", "MAM", "AMJ", "MJJ", "JJA", "JAS", "ASO", "SON", "OND", "NDJ")
+SEASONS = (
+    "DJF",
+    "JFM",
+    "FMA",
+    "MAM",
+    "AMJ",
+    "MJJ",
+    "JJA",
+    "JAS",
+    "ASO",
+    "SON",
+    "OND",
+    "NDJ",
+)
 
 
 class Base(DeclarativeBase):

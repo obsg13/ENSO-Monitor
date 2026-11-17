@@ -1,10 +1,12 @@
 import hashlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
 
-ONI_URL = "https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/oni/v6/index.php"
+ONI_URL = (
+    "https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/oni/v6/index.php"
+)
 RAW_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
 
 
@@ -14,7 +16,7 @@ def download_oni_page(url: str = ONI_URL, raw_dir: Path = RAW_DIR) -> tuple[Path
     content = response.content
 
     raw_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     path = raw_dir / f"oni_v6_{timestamp}.html"
     path.write_bytes(content)
 

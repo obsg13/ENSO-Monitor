@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -28,7 +28,9 @@ def client():
     TestingSession = sessionmaker(bind=engine)
 
     with TestingSession() as session:
-        source = Source(name="NOAA Climate Prediction Center", url="https://example.org")
+        source = Source(
+            name="NOAA Climate Prediction Center", url="https://example.org"
+        )
         session.add(source)
         session.flush()
         index = ClimateIndex(
@@ -41,7 +43,7 @@ def client():
         session.add(index)
         session.flush()
         run = ImportRun(
-            climate_index_id=index.id, started_at=datetime.now(timezone.utc), status="success"
+            climate_index_id=index.id, started_at=datetime.now(UTC), status="success"
         )
         session.add(run)
         session.flush()

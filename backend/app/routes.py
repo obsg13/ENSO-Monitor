@@ -16,7 +16,9 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 def get_index_or_404(session: Session, code: str) -> ClimateIndex:
-    climate_index = session.scalar(select(ClimateIndex).where(ClimateIndex.code == code))
+    climate_index = session.scalar(
+        select(ClimateIndex).where(ClimateIndex.code == code)
+    )
     if climate_index is None:
         raise HTTPException(status_code=404, detail=f"Indice inconnu : {code}")
     return climate_index
@@ -78,9 +80,15 @@ def list_indices(session: SessionDep):
 @router.get("/observations", response_model=list[ObservationOut])
 def list_observations(
     session: SessionDep,
-    index: Annotated[str, Query(description="Code de l'indice, par exemple ONI")] = "ONI",
-    start: Annotated[date | None, Query(description="Date de début incluse (AAAA-MM-JJ)")] = None,
-    end: Annotated[date | None, Query(description="Date de fin incluse (AAAA-MM-JJ)")] = None,
+    index: Annotated[
+        str, Query(description="Code de l'indice, par exemple ONI")
+    ] = "ONI",
+    start: Annotated[
+        date | None, Query(description="Date de début incluse (AAAA-MM-JJ)")
+    ] = None,
+    end: Annotated[
+        date | None, Query(description="Date de fin incluse (AAAA-MM-JJ)")
+    ] = None,
 ):
     check_period(start, end)
     climate_index = get_index_or_404(session, index)
@@ -94,7 +102,9 @@ def compare_periods(
     a_end: Annotated[date, Query(description="Fin de la période A (AAAA-MM-JJ)")],
     b_start: Annotated[date, Query(description="Début de la période B (AAAA-MM-JJ)")],
     b_end: Annotated[date, Query(description="Fin de la période B (AAAA-MM-JJ)")],
-    index: Annotated[str, Query(description="Code de l'indice, par exemple ONI")] = "ONI",
+    index: Annotated[
+        str, Query(description="Code de l'indice, par exemple ONI")
+    ] = "ONI",
 ):
     check_period(a_start, a_end, "A")
     check_period(b_start, b_end, "B")

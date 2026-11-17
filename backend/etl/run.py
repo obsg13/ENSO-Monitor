@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -13,7 +13,7 @@ def run_import(session: Session) -> ImportRun:
     index = get_or_create_oni_index(session, ONI_URL)
     run = ImportRun(
         climate_index_id=index.id,
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
         status="running",
     )
     session.add(run)
@@ -26,7 +26,9 @@ def run_import(session: Session) -> ImportRun:
         session.commit()
 
         observations, rows_read = transform(path.read_text(encoding="utf-8"))
-        inserted, updated, _ = load_observations(session, index.id, run.id, observations)
+        inserted, updated, _ = load_observations(
+            session, index.id, run.id, observations
+        )
 
         run.rows_read = rows_read
         run.rows_inserted = inserted
@@ -38,7 +40,7 @@ def run_import(session: Session) -> ImportRun:
         run.status = "failed"
         raise
     finally:
-        run.finished_at = datetime.now(timezone.utc)
+        run.finished_at = datetime.now(UTC)
         session.commit()
 
     return run

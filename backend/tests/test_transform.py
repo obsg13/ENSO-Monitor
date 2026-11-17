@@ -6,7 +6,10 @@ import pandas as pd
 from etl.transform import clean_observations, transform
 
 RAW_FILE = (
-    Path(__file__).resolve().parents[2] / "data" / "raw" / "oni_v6_20261104T122258Z.html"
+    Path(__file__).resolve().parents[2]
+    / "data"
+    / "raw"
+    / "oni_v6_20261104T122258Z.html"
 )
 
 
@@ -34,4 +37,8 @@ def test_transform_reads_saved_noaa_page():
     assert len(observations) == 921
     assert observations["period_date"].is_unique
     first = observations.iloc[0]
-    assert (first["season"], first["period_date"], first["value"]) == ("DJF", date(1950, 1, 1), -1.3)
+    assert (first["season"], first["period_date"], first["value"]) == (
+        "DJF",
+        date(1950, 1, 1),
+        -1.3,
+    )
