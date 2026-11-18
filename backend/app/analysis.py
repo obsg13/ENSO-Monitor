@@ -15,4 +15,6 @@ def compute_period_stats(observations: Sequence[Observation]) -> PeriodStats:
         peak_season=peak.season,
         peak_date=peak.period_date,
         mean_value=round(mean, 2),
+        min_value=min(obs.value for obs in observations),
+        max_value=max(obs.value for obs in observations),
     )

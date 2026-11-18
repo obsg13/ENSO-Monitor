@@ -7,10 +7,15 @@ function formatValue(value: number): string {
 }
 
 function describePhase(label: string, stats: PeriodStats): string {
-  if (stats.peak_value >= THRESHOLD) {
+  const reachesElNino = stats.max_value >= THRESHOLD
+  const reachesLaNina = stats.min_value <= -THRESHOLD
+  if (reachesElNino && reachesLaNina) {
+    return `L'épisode ${label} dépasse le seuil El Niño (+0,5 °C) et descend aussi sous le seuil La Niña (-0,5 °C).`
+  }
+  if (reachesElNino) {
     return `L'épisode ${label} dépasse le seuil El Niño (+0,5 °C).`
   }
-  if (stats.peak_value <= -THRESHOLD) {
+  if (reachesLaNina) {
     return `L'épisode ${label} descend sous le seuil La Niña (-0,5 °C).`
   }
   return `L'épisode ${label} reste entre les deux seuils (conditions neutres).`

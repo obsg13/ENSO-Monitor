@@ -29,6 +29,8 @@ class PeriodStats(BaseModel):
     peak_season: str
     peak_date: date
     mean_value: float
+    min_value: float
+    max_value: float
 
 
 class ComparisonOut(BaseModel):

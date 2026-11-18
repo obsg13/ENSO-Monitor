@@ -22,6 +22,8 @@ export interface PeriodStats {
   peak_season: string
   peak_date: string
   mean_value: number
+  min_value: number
+  max_value: number
 }
 
 export interface Comparison {
