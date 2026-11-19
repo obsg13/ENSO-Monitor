@@ -116,3 +116,35 @@ En cas d'erreur, un message explique le problème sans effacer ce qui était aff
 Sur ordinateur, l'en-tête regroupe le titre, la source, la version, la date d'extraction et l'unité. Le filtre est au-dessus d'une courbe pleine largeur, puis viennent le tableau et la comparaison. Sur mobile, les mêmes zones sont empilées dans le même ordre, et le tableau est replié par défaut pour ne pas allonger la page de plus de 900 lignes.
 
 L'application suit ce découpage, avec une différence : sur ordinateur aussi, la comparaison est placée sous le tableau et non à côté, pour laisser assez de largeur aux deux formulaires d'épisode.
+
+<div style="page-break-after: always;"></div>
+
+# 3. UML et modélisation
+
+## Diagramme de cas d'utilisation
+
+Diagramme : [docs/diagrams/use-cases.drawio.svg](diagrams/use-cases.drawio.svg)
+
+Le système a trois acteurs. Le **visiteur** consulte la courbe, la filtre, lit le tableau des valeurs et compare deux épisodes. L'**administrateur** lance l'import des données. La **NOAA** est un acteur système : elle fournit la page source de l'import, sans faire partie de l'application.
+
+Deux relations précisent les cas. Le filtrage **étend** (extend) la consultation de la courbe : on peut regarder la courbe sans filtrer. Le contrôle des doublons est **inclus** (include) dans l'import : chaque import le réalise obligatoirement.
+
+L'administrateur n'a pas d'interface web : l'import se lance en ligne de commande. Une interface aurait demandé une authentification et agrandi la surface d'attaque, pour un seul utilisateur qui lance l'import une fois par mois.
+
+## Diagramme de classes
+
+Diagramme : [docs/diagrams/class-diagram.drawio.svg](diagrams/class-diagram.drawio.svg)
+
+Le modèle reprend les quatre entités demandées :
+
+- **Source** : l'organisme qui publie les données (NOAA CPC) et l'adresse de la page d'origine.
+- **ClimateIndex** : la série suivie (ONI), avec son unité (°C) et la version du jeu de données (ERSSTv6).
+- **ImportRun** : une exécution de l'ETL, avec sa date, le chemin de la copie brute, son empreinte SHA-256, le bilan chiffré et le statut.
+- **Observation** : une valeur de l'indice pour une saison, datée par le mois central de la saison.
+
+Justification des cardinalités :
+
+- **Source 1 — 0..\* ClimateIndex.** Une source peut publier plusieurs indices : la NOAA publie l'ONI et le RONI. Ajouter le RONI ne demanderait qu'une ligne de plus, sans modifier la structure.
+- **ClimateIndex 1 — 0..\* ImportRun.** L'import est relancé à chaque mise à jour de la NOAA, et chaque exécution concerne un seul indice.
+- **ClimateIndex 1 — 0..\* Observation.** Une valeur n'a de sens que rattachée à son indice.
+- **ImportRun 1 — 0..\* Observation.** Chaque valeur est rattachée à l'import qui l'a écrite ou révisée en dernier : c'est la traçabilité. Un import sans nouveauté n'écrit aucune valeur, d'où le minimum à 0.
