@@ -23,7 +23,7 @@ NOAA (page ONI v6) → ETL Python/pandas → PostgreSQL → API FastAPI → Inte
 - `backend/tests/` : tests Pytest (données, API, calculs)
 - `frontend/` : interface React + TypeScript (Vite) et tests Vitest
 - `data/raw/` : copies brutes datées de la page NOAA
-- `docs/` : conception, diagrammes UML, captures des tests
+- `docs/` : dossier de conception (`dossier.md` et `dossier.pdf`), diagrammes UML, captures des tests, backlog
 
 ## Prérequis
 
@@ -103,7 +103,7 @@ Les trois tests exigés et leur preuve d'exécution :
 2. **API** — route filtrée par période et entrée invalide (422) : `backend/tests/test_api.py`, capture `docs/screenshots/test2-api.png`.
 3. **Frontend** — un changement de période met à jour les valeurs affichées : `frontend/src/App.test.tsx`, capture `docs/screenshots/test3-front.png`.
 
-Deux tests de non-régression accompagnent la correction d'une anomalie : `backend/tests/test_analysis.py` et `frontend/src/interpretation.test.ts` (détails dans `docs/conception/06-anomalies.md`).
+Deux tests de non-régression accompagnent la correction d'une anomalie : `backend/tests/test_analysis.py` et `frontend/src/interpretation.test.ts` (détails dans la section 6 du dossier de conception).
 
 ## Qualité
 
