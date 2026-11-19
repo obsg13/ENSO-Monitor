@@ -22,373 +22,196 @@ HETIC, Web3, sujet de rattrapage 2026
 
 # 1. Besoin et contexte
 
-## Objectif
+ENSO Monitor permet d'explorer l'indice ONI (Oceanic Niño Index) de la NOAA depuis 1950, de repérer les épisodes El Niño et La Niña et d'en comparer deux. Chaque valeur affichée est réelle et vérifiable : elle est rattachée à l'import qui l'a enregistrée et à une copie brute de la page NOAA.
 
-ENSO Monitor permet d'explorer l'indice ONI (Oceanic Niño Index) publié par la NOAA, de visualiser les épisodes El Niño et La Niña depuis 1950 et de comparer deux épisodes historiques. Les données sont réelles, sourcées et vérifiables : chaque valeur est rattachée à l'import qui l'a enregistrée et à une copie brute de la page NOAA.
+**Public cible** : le grand public qui entend parler d'El Niño dans l'actualité, les étudiants et enseignants en sciences de la Terre, les journalistes qui comparent un épisode en cours à des épisodes passés.
 
-## Public cible
+**Contraintes** : projet individuel en cinq jours ; stack imposée (React, TypeScript, Vite, FastAPI, PostgreSQL, SQLAlchemy, Alembic, Pandas, NumPy) ; une série NOAA authentique, sourcée et datée ; interface responsive et accessible ; aucune dépense.
 
-- Le grand public, qui entend parler d'El Niño dans l'actualité et veut comprendre de quoi il s'agit.
-- Les étudiants et enseignants en géographie ou en sciences de la Terre, qui ont besoin d'une visualisation simple et sourcée.
-- Les journalistes, qui veulent comparer un épisode en cours à des épisodes passés.
+**Périmètre du MVP** :
 
-## Contraintes
+1. import de l'ONI v6 dans PostgreSQL, avec identification de la source et contrôle des doublons ;
+2. API FastAPI documentée, avec filtrage par période et validation des entrées ;
+3. courbe interactive filtrable, avec unité et source visibles, et un tableau en alternative ;
+4. comparaison de deux épisodes avec une interprétation prudente.
 
-- Projet individuel réalisé en cinq jours.
-- Stack imposée : React, TypeScript et Vite pour l'interface ; FastAPI pour l'API ; PostgreSQL, SQLAlchemy et Alembic pour les données ; Python, Pandas et NumPy pour l'ETL.
-- Une série NOAA authentique (ONI ou RONI), avec sa source, sa version et sa date d'extraction.
-- Une interface responsive, utilisable au clavier, avec des graphiques accessibles.
-- Aucune dépense : le déploiement est documenté mais pas réalisé.
+**Limites** :
 
-## Périmètre du MVP
-
-1. Import de l'indice ONI v6 dans PostgreSQL, avec identification de la source et contrôle des doublons.
-2. API FastAPI documentée, avec filtrage par période et validation des entrées.
-3. Courbe interactive avec filtre de période, unité et source visibles, et un tableau en alternative.
-4. Comparaison de deux épisodes historiques avec une interprétation prudente.
-
-La détection automatique des épisodes est une extension, hors du MVP.
-
-## Limites
-
-- **Un seul indice.** L'ONI mesure la température de surface d'une zone du Pacifique (Niño 3.4). Il ne décrit ni la composante atmosphérique d'ENSO ni ses effets régionaux.
-- **ONI et RONI.** Depuis le communiqué NWS 26-05, la NOAA utilise le RONI pour le suivi officiel. L'ONI reste l'indice de référence des études historiques, qui sont l'objet de l'application.
-- **Valeurs récentes provisoires.** La NOAA peut réviser une valeur jusqu'à deux mois après sa publication.
-- **Granularité saisonnière.** Chaque valeur est une moyenne sur trois mois glissants.
-- **Pas de prévision.** L'application décrit des mesures passées.
-- **Dépendance à la page NOAA.** Les données ne sont publiées que sous forme de tableau HTML, sans fichier brut ni API. Un changement de mise en page bloquerait l'import, sans toucher aux données déjà en base.
-
-<div style="page-break-after: always;"></div>
+- l'ONI ne mesure que la température de surface de la zone Niño 3.4, pas la composante atmosphérique ni les effets régionaux d'ENSO ;
+- la NOAA utilise désormais le RONI pour le suivi officiel (communiqué NWS 26-05) ; l'ONI reste la référence des études historiques, objet de l'application ;
+- les valeurs récentes peuvent être révisées pendant deux mois, et chaque valeur est une moyenne sur trois mois ;
+- l'application décrit le passé et ne fait aucune prévision ;
+- la NOAA ne publie qu'un tableau HTML : un changement de sa mise en page bloquerait l'import, sans toucher aux données déjà en base.
 
 # 2. Fonctionnel et UX
 
 ## User stories et critères d'acceptation
 
-L'application a deux acteurs : le **visiteur**, qui consulte les données, et l'**administrateur**, qui lance l'import NOAA en ligne de commande.
+Deux acteurs : le visiteur, qui consulte, et l'administrateur, qui lance l'import en ligne de commande.
 
-**US1, consulter la courbe ONI.** En tant que visiteur, je veux voir l'évolution de l'ONI sous forme de courbe, afin de repérer les épisodes El Niño et La Niña.
-Critères : valeurs dans l'ordre chronologique ; unité, source, version et date d'extraction visibles ; seuils de ±0,5 °C tracés ; message pendant le chargement et en cas d'erreur de l'API.
+- **US1, consulter la courbe ONI**, pour repérer les épisodes. Critères : ordre chronologique ; unité, source, version et date d'extraction visibles ; seuils de ±0,5 °C ; états de chargement et d'erreur.
+- **US2, filtrer par période**. Critères : seules les valeurs de la période s'affichent ; erreur si le début suit la fin, sans toucher à la courbe ; message si aucune donnée ; utilisable au clavier.
+- **US3, comparer deux épisodes**. Critères : durée, pic, saison du pic et moyenne ; interprétation prudente, sans prévision ni « Super El Niño » ; rappel des limites.
+- **US4, lire les valeurs en tableau**, pour un visiteur avec lecteur d'écran. Critères : mêmes valeurs que la courbe, synchronisées avec le filtre ; en-têtes de colonnes.
+- **US5, utiliser le site sur mobile et au clavier**. Critères : lisible sur 375 px ; focus visible ; contrastes WCAG AA.
+- **US6, importer les données sans doublon** (administrateur). Critères : copie brute datée avec empreinte SHA-256 ; aucune saison en double ; valeurs révisées mises à jour ; import tracé ; relancer l'import sans nouveauté n'insère rien.
+- **US7, voir les épisodes détectés** (extension). Critère : règle NOAA de 5 saisons consécutives au-delà de ±0,5 °C.
 
-**US2, filtrer par période.** En tant que visiteur, je veux choisir une date de début et une date de fin, afin d'observer une période précise.
-Critères : seules les valeurs de la période sont affichées ; message d'erreur si le début suit la fin, sans modifier la courbe ; message si la période ne contient aucune donnée ; filtre utilisable au clavier.
-
-**US3, comparer deux épisodes.** En tant que visiteur, je veux comparer deux épisodes passés, afin de voir ce qui les rapproche ou les distingue.
-Critères : choix de deux périodes ; durée, pic, saison du pic et moyenne pour chacune ; texte d'interprétation prudent, sans prévision ni classe « Super El Niño » ; rappel des limites.
-
-**US4, lire les valeurs en tableau.** En tant que visiteur utilisant un lecteur d'écran, je veux accéder aux valeurs sous forme de tableau, afin de ne pas dépendre du graphique.
-Critères : mêmes valeurs que la courbe ; tableau synchronisé avec le filtre ; en-têtes de colonnes lisibles par un lecteur d'écran.
-
-**US5, utiliser le site sur mobile et au clavier.** En tant que visiteur, je veux utiliser l'application quel que soit mon équipement.
-Critères : lisible sur 375 px de large sans défilement horizontal ; chaque contrôle accessible avec Tab, avec un focus visible ; contrastes conformes au niveau AA des WCAG.
-
-**US6, importer les données NOAA sans doublon.** En tant qu'administrateur, je veux lancer l'import de l'ONI, afin de disposer de données à jour, traçables et sans doublon.
-Critères : copie brute datée et son empreinte SHA-256 ; aucune saison enregistrée deux fois ; valeurs révisées mises à jour ; import tracé avec ses compteurs et son statut ; relancer l'import sans changement côté NOAA n'insère rien.
-
-**US7, voir les épisodes détectés (extension).** En tant que visiteur, je veux voir la liste des épisodes détectés, afin de choisir plus facilement ceux à comparer.
-Critères : règle de la NOAA appliquée (±0,5 °C pendant au moins 5 saisons consécutives) et affichée à côté de la liste.
-
-## Priorisation
-
-J'ai classé les stories avec la méthode MoSCoW :
-
-- **Must** : US1 à US6. Elles couvrent les quatre fonctionnalités du MVP et les exigences d'accessibilité.
-- **Should** : aucune. Chaque besoin était soit indispensable au MVP, soit un simple confort.
-- **Could** : US7. La comparaison fonctionne sans elle, puisque le visiteur peut choisir ses périodes à la main.
-- **Won't** : prévisions climatiques, second indice (RONI), carte Copernicus ERA5, interface d'administration web, exports et statistiques avancées, classification « Super El Niño », déploiement réel. Ces exclusions sont justifiées dans les arbitrages de la section 5.
+**Priorisation MoSCoW** : US1 à US6 en Must, car elles couvrent le MVP et l'accessibilité ; US7 en Could, la comparaison fonctionnant avec des périodes choisies ; en Won't, les prévisions, le RONI, la carte ERA5, une interface d'administration, les exports et le déploiement réel.
 
 ## Parcours utilisateurs
 
-**Visiteur, parcours principal.**
-
 1. À l'ouverture, la courbe couvre toute la période depuis 1950, avec la source et l'unité dans l'en-tête.
-2. Le visiteur choisit une période et la valide avec « Appliquer » : la courbe et le tableau se mettent à jour.
-3. Les lignes de seuil lui montrent quand l'indice dépasse +0,5 °C (El Niño) ou descend sous -0,5 °C (La Niña).
-4. Dans la comparaison, deux épisodes El Niño sont proposés par défaut (1997-1998 et 2014-2016). Il peut les modifier, puis clique sur « Comparer » : les indicateurs, l'interprétation et les limites s'affichent.
+2. Le visiteur choisit une période et clique sur « Appliquer » : la courbe et le tableau se mettent à jour.
+3. Les lignes de seuil montrent les passages au-dessus de +0,5 °C (El Niño) et sous -0,5 °C (La Niña).
+4. La comparaison propose deux El Niño par défaut (1997-1998 et 2014-2016), modifiables ; « Comparer » affiche les indicateurs, l'interprétation et les limites.
 
-En cas d'erreur, un message explique le problème sans effacer ce qui était affiché : début après la fin, période sans donnée, API injoignable, ou période de comparaison vide.
-
-**Administrateur, import des données.** Il lance la commande d'import. L'ETL télécharge la page ONI v6, en garde une copie datée avec son empreinte, nettoie les valeurs, insère les nouvelles et met à jour celles que la NOAA a révisées, puis affiche le bilan. Si la NOAA est injoignable, l'import est enregistré en échec, et le site continue de fonctionner avec les données déjà en base.
+En cas d'erreur (dates incohérentes, période vide, API injoignable), un message s'affiche et la courbe précédente reste visible. Côté administrateur, l'import télécharge la page, garde sa copie, met à jour la base et affiche son bilan ; si la NOAA est injoignable, l'import est enregistré en échec et le site continue de fonctionner.
 
 ## Wireframes
 
 ![Wireframes desktop et mobile](diagrams/wireframe.drawio.svg)
 
-Sur ordinateur, l'en-tête regroupe le titre, la source, la version, la date d'extraction et l'unité. Le filtre est au-dessus d'une courbe pleine largeur, puis viennent le tableau et la comparaison. Sur mobile, les mêmes zones sont empilées dans le même ordre, et le tableau est replié par défaut pour ne pas allonger la page de plus de 900 lignes.
-
-L'application suit ce découpage, avec une différence : sur ordinateur aussi, la comparaison est placée sous le tableau et non à côté, pour laisser assez de largeur aux deux formulaires d'épisode.
-
-<div style="page-break-after: always;"></div>
+En-tête avec la source, filtre, courbe pleine largeur, puis tableau et comparaison ; sur mobile, les zones sont empilées et le tableau est replié. Dans l'application, la comparaison est placée sous le tableau, y compris sur ordinateur, pour laisser de la largeur aux deux formulaires.
 
 # 3. UML et modélisation
 
-## Diagramme de cas d'utilisation
+## Cas d'utilisation
 
-Diagramme : [docs/diagrams/use-cases.drawio.svg](diagrams/use-cases.drawio.svg)
+![Diagramme de cas d'utilisation](diagrams/use-cases.drawio.svg)
 
-Le système a trois acteurs. Le **visiteur** consulte la courbe, la filtre, lit le tableau des valeurs et compare deux épisodes. L'**administrateur** lance l'import des données. La **NOAA** est un acteur système : elle fournit la page source de l'import, sans faire partie de l'application.
+La NOAA est un acteur système : elle fournit les données sans faire partie de l'application. Le filtre étend la consultation de la courbe (il est facultatif), et le contrôle des doublons est inclus dans l'import (il est systématique). L'administrateur n'a pas d'interface web, ce qui évite une authentification pour un seul utilisateur.
 
-Deux relations précisent les cas. Le filtrage **étend** (extend) la consultation de la courbe : on peut regarder la courbe sans filtrer. Le contrôle des doublons est **inclus** (include) dans l'import : chaque import le réalise obligatoirement.
+## Classes
 
-L'administrateur n'a pas d'interface web : l'import se lance en ligne de commande. Une interface aurait demandé une authentification et agrandi la surface d'attaque, pour un seul utilisateur qui lance l'import une fois par mois.
+![Diagramme de classes](diagrams/class-diagram.drawio.svg)
 
-## Diagramme de classes
+- **Source 1 — 0..\* ClimateIndex** : la NOAA publie plusieurs indices ; ajouter le RONI ne demande qu'une ligne.
+- **ClimateIndex 1 — 0..\* ImportRun** : un import concerne un indice, et il est relancé à chaque publication.
+- **ClimateIndex 1 — 0..\* Observation** : une valeur n'a de sens que rattachée à son indice.
+- **ImportRun 1 — 0..\* Observation** : chaque valeur est rattachée à l'import qui l'a écrite ou révisée en dernier ; un import sans nouveauté n'écrit rien.
 
-Diagramme : [docs/diagrams/class-diagram.drawio.svg](diagrams/class-diagram.drawio.svg)
+La base impose l'unicité du couple (indice, date) et une plage de -5 à +5 °C. L'année n'est pas stockée, elle se déduit de la date.
 
-Le modèle reprend les quatre entités demandées :
+## Séquence
 
-- **Source** : l'organisme qui publie les données (NOAA CPC) et l'adresse de la page d'origine.
-- **ClimateIndex** : la série suivie (ONI), avec son unité (°C) et la version du jeu de données (ERSSTv6).
-- **ImportRun** : une exécution de l'ETL, avec sa date, le chemin de la copie brute, son empreinte SHA-256, le bilan chiffré et le statut.
-- **Observation** : une valeur de l'indice pour une saison, datée par le mois central de la saison.
+![Diagramme de séquence](diagrams/sequence.drawio.svg)
 
-Justification des cardinalités :
-
-- **Source 1 — 0..\* ClimateIndex.** Une source peut publier plusieurs indices : la NOAA publie l'ONI et le RONI. Ajouter le RONI ne demanderait qu'une ligne de plus, sans modifier la structure.
-- **ClimateIndex 1 — 0..\* ImportRun.** L'import est relancé à chaque mise à jour de la NOAA, et chaque exécution concerne un seul indice.
-- **ClimateIndex 1 — 0..\* Observation.** Une valeur n'a de sens que rattachée à son indice.
-- **ImportRun 1 — 0..\* Observation.** Chaque valeur est rattachée à l'import qui l'a écrite ou révisée en dernier : c'est la traçabilité. Un import sans nouveauté n'écrit aucune valeur, d'où le minimum à 0.
-
-<div style="page-break-after: always;"></div>
+Le visiteur filtre la courbe sur 1997-1998. L'API valide les dates avant toute requête : une entrée invalide renvoie 422 sans solliciter la base. Sinon, deux requêtes paramétrées (l'indice, puis les observations triées) donnent une réponse 200 en JSON. Un indice inconnu, non représenté, renvoie 404.
 
 # 4. Architecture technique
 
-## Composants et flux de données
+![Architecture logique](diagrams/architecture.drawio.svg)
 
-Diagramme : [docs/diagrams/architecture.drawio.svg](diagrams/architecture.drawio.svg)
-
-L'application est découpée en quatre composants, chacun avec une seule responsabilité :
-
-- **L'interface React** affiche la courbe, le filtre, le tableau et la comparaison. Elle n'appelle que l'API.
-- **L'API FastAPI** valide les paramètres, lit la base, calcule les indicateurs de comparaison et renvoie du JSON. Elle ne fait que lire.
-- **PostgreSQL** stocke les sources, les indices, les imports et les observations.
-- **Le worker ETL** télécharge la page NOAA, en garde une copie brute, nettoie les valeurs et les écrit en base. C'est le seul composant qui écrit.
-
-Les données circulent dans un seul sens : NOAA, ETL, PostgreSQL, API, puis navigateur. Le navigateur ne parle jamais directement à la base.
+L'interface React n'appelle que l'API. L'API FastAPI valide, lit la base, calcule la comparaison et renvoie du JSON ; elle ne fait que lire. Le worker ETL est le seul à écrire en base. Les données vont dans un seul sens : NOAA, ETL, PostgreSQL, API, navigateur.
 
 ## Décisions d'architecture
 
-### PostgreSQL pour les données
+**PostgreSQL.** Besoin : stocker les observations et leur provenance sans incohérence. Options : CSV, SQLite, PostgreSQL. Choix : PostgreSQL. Avantages : contraintes appliquées par la base, accès simultané de l'API et de l'ETL. Limite : un service de plus pour environ 920 lignes. Vérification : un second import n'insère rien, 921 dates distinctes pour 921 valeurs.
 
-- **Besoin** : stocker les observations et leur provenance, en garantissant qu'aucune donnée incohérente n'entre en base.
-- **Options** : des fichiers CSV, SQLite, PostgreSQL.
-- **Choix** : PostgreSQL, imposé par le sujet et adapté au besoin.
-- **Avantages** : les contraintes (unicité, plages de valeurs, clés étrangères) sont appliquées par la base elle-même ; l'API et l'ETL y accèdent en même temps sans conflit.
-- **Limites** : un service de plus à faire tourner, alors que le volume reste faible (environ 920 lignes).
-- **Vérification** : un second import n'insère aucune ligne, et la base contient 921 dates distinctes pour 921 observations.
+**ETL séparé.** Besoin : importer chaque mois sans gêner la consultation. Options : appeler la NOAA à chaque requête, importer au démarrage de l'API, ou un programme à part. Choix : un worker lancé à la demande. Avantages : une panne de la NOAA ne touche pas le site, l'API reste en lecture seule. Limite : import manuel. Vérification : chaque import est tracé, un échec est enregistré sans modifier les données.
 
-### Un ETL séparé de l'API
+**API versionnée.** Besoin : un contrat stable avec l'interface. Options : sans préfixe, version dans un en-tête, préfixe d'URL. Choix : `/api/v1`. Avantages : une version incompatible pourra coexister en `/api/v2`, et le proxy route tout `/api/`. Limite : maintenir deux versions aurait un coût. Vérification : documentation OpenAPI générée, test d'API sur `/api/v1/observations`.
 
-- **Besoin** : importer les données une fois par mois sans perturber la consultation.
-- **Options** : appeler la NOAA à chaque requête de l'API, lancer l'import au démarrage de l'API, ou en faire un programme à part.
-- **Choix** : un worker séparé, lancé à la demande (`docker compose run --rm etl`).
-- **Avantages** : une panne de la NOAA ne touche pas le site ; l'API reste en lecture seule ; chaque programme a un seul rôle.
-- **Limites** : l'import est manuel, sans planification automatique.
-- **Vérification** : chaque import est tracé avec son statut ; un import en échec est enregistré `failed` sans modifier les données déjà en base.
+**Docker Compose.** Besoin : lancer les quatre composants de façon reproductible. Options : installation manuelle, conteneurs un par un, Compose, Kubernetes. Choix : Compose, avec deux réseaux et un volume. Avantages : une commande, versions fixées, base joignable seulement par l'API et l'ETL. Limite : un seul serveur. Vérification : `docker compose up -d --build` lance l'application, l'import tourne dans un conteneur.
 
-### Une API versionnée sous /api/v1
+**Graphique accessible.** Besoin : une courbe lisible par tous. Options : graphique seul, image, graphique avec alternative. Choix : Recharts, seuils signalés par un texte, légende descriptive et tableau synchronisé. Avantage : les données restent lisibles sans le graphique. Limites : tableau long, replié par défaut ; Recharts alourdit le JavaScript. Vérification : Lighthouse 100/100 en accessibilité, contrastes calculés.
 
-- **Besoin** : un contrat stable entre l'API et l'interface.
-- **Options** : des routes sans préfixe, une version passée dans un en-tête HTTP, ou un préfixe dans l'adresse.
-- **Choix** : le préfixe `/api/v1`, porté par un routeur FastAPI.
-- **Avantages** : une évolution incompatible pourra être publiée sous `/api/v2` sans casser l'interface ; le reverse proxy peut router tout `/api/` vers FastAPI.
-- **Limites** : maintenir plusieurs versions en parallèle aurait un coût, inutile tant qu'il n'y en a qu'une.
-- **Vérification** : la documentation OpenAPI générée liste les quatre routes, et le test d'API appelle `/api/v1/observations`.
-
-### Docker Compose pour l'exécution
-
-- **Besoin** : lancer la base, l'API, l'ETL et l'interface de la même façon sur toutes les machines.
-- **Options** : une installation manuelle, des conteneurs lancés un par un, Docker Compose, Kubernetes.
-- **Choix** : Docker Compose, avec deux réseaux et un volume pour la base.
-- **Avantages** : une commande suffit, les versions sont fixées, et la base n'est joignable que par l'API et l'ETL. Le même fichier sert de base au déploiement.
-- **Limites** : tout tourne sur un seul serveur, sans redondance.
-- **Vérification** : `docker compose up -d --build` lance l'application complète, et l'import fonctionne dans un conteneur.
-
-### Un graphique accessible
-
-- **Besoin** : rendre la courbe compréhensible par tous, y compris avec un lecteur d'écran ou une mauvaise perception des couleurs.
-- **Options** : un graphique seul, une image fixe, ou un graphique accompagné d'une alternative textuelle.
-- **Choix** : une courbe Recharts, des seuils signalés par un texte et pas seulement par une couleur, une légende descriptive, et un tableau qui suit le même filtre.
-- **Avantages** : les mêmes données restent lisibles sans voir le graphique.
-- **Limites** : le tableau complet est long (921 lignes), d'où son affichage replié par défaut ; Recharts alourdit le JavaScript livré (environ 600 Ko).
-- **Vérification** : score d'accessibilité Lighthouse de 100/100, contrastes calculés, navigation complète au clavier.
-
-### La traçabilité des données
-
-- **Besoin** : pouvoir prouver d'où vient chaque valeur affichée.
-- **Options** : importer sans trace, écrire un journal texte, ou enregistrer chaque import en base avec la copie brute.
-- **Choix** : une table `import_run` et une copie brute datée de la page NOAA, avec son empreinte SHA-256.
-- **Avantages** : chaque valeur remonte à son import, au fichier d'origine et à la source ; n'importe qui peut vérifier l'empreinte ; les tests tournent sur la copie, sans internet.
-- **Limites** : une copie d'environ 160 Ko est conservée à chaque import, sans purge.
-- **Vérification** : l'empreinte recalculée avec `shasum -a 256` est identique à celle enregistrée en base.
+**Traçabilité.** Besoin : prouver l'origine de chaque valeur. Options : aucun suivi, journal texte, imports tracés en base. Choix : table `import_run`, copie brute datée et empreinte SHA-256. Avantages : chaque valeur remonte au fichier et à la source ; les tests tournent sur la copie, hors ligne. Limite : une copie d'environ 160 Ko par import. Vérification : l'empreinte recalculée avec `shasum -a 256` est identique à celle en base.
 
 ## Schéma relationnel
 
-Notation : clé primaire en gras, `#` pour une clé étrangère.
+Clé primaire en gras, `#` pour une clé étrangère :
 
 - source (**id**, name, url)
 - climate_index (**id**, #source_id, code, name, unit, dataset_version)
 - import_run (**id**, #climate_index_id, started_at, finished_at, raw_file_path, sha256, rows_read, rows_inserted, rows_updated, rows_skipped, status)
 - observation (**id**, #climate_index_id, #import_run_id, season, period_date, value)
 
-**Intégrité.** Chaque clé étrangère suit une association du diagramme de classes. La contrainte `uq_observation_index_date` interdit deux valeurs pour le même indice à la même date. Trois contrôles refusent les données invalides : une valeur hors de -5 à +5 °C, une saison inconnue, ou un statut d'import autre que `running`, `success` ou `failed`. Le code d'un indice est unique, et seules les colonnes de fin d'import (`finished_at`, `raw_file_path`, `sha256`) peuvent rester vides tant que l'import n'a pas abouti.
-
-**Index.** La contrainte d'unicité sur (climate_index_id, period_date) crée un index qui sert aussi la requête principale de l'API : les observations d'un indice sur une période. Pour ce volume, aucun autre index n'est nécessaire.
-
-**Migrations.** Alembic crée le schéma à partir des modèles SQLAlchemy. Toute évolution future de structure passera par une nouvelle migration versionnée, réversible.
-
-**Provenance.** Une observation renvoie à son import (date, copie brute, empreinte), qui renvoie à l'indice (ONI, °C, ERSSTv6), qui renvoie à la source (NOAA CPC et l'adresse de sa page).
-
-<div style="page-break-after: always;"></div>
+Contraintes : unicité (climate_index_id, period_date), valeur entre -5 et +5, saison parmi les 12 de la NOAA, statut d'import contrôlé, code d'indice unique. L'index créé par la contrainte d'unicité sert aussi le filtrage par période. Le schéma est créé et versionné par les migrations Alembic.
 
 # 5. Organisation du projet
 
-## Backlog
+Le backlog compte 33 tâches (T01 à T33), reliées aux user stories, avec priorité, estimation et statut (`docs/conception/organisation.md`). Toutes sont réalisées, sauf T20, la détection automatique des épisodes, abandonnée comme prévu.
 
-Le backlog détaillé compte 33 tâches, de T01 à T33, chacune reliée à une user story, avec une priorité, une estimation et un statut (`docs/conception/organisation.md`). Regroupées par étape :
+**Planning sur cinq jours** : jour 1, conception et base de données ; jour 2, ETL et test des données ; jour 3, API et test de l'API ; jour 4, interface, accessibilité et test de l'interface ; jour 5, Docker, qualité, README et dossier. L'ordre suit les dépendances : pas d'API sans données, pas d'interface sans API. Le travail a été mené en sessions sur plusieurs semaines, dans cet ordre.
 
-- **Conception** (T01 à T07) : user stories, parcours, diagrammes, wireframes, backlog et risques.
-- **Base de données et ETL** (T08 à T13) : PostgreSQL dans Docker, modèles et migration, extraction, transformation, chargement et test des données.
-- **API** (T14 à T19) : application FastAPI, routes et validation, comparaison, CORS, test de l'API et diagramme de séquence.
-- **Interface** (T21 à T27) : projet Vite, client API, hook de chargement, composants, comparaison, accessibilité et test de l'interface.
-- **Livraison** (T28 à T33) : Docker Compose, qualité du code, correction d'une anomalie, README, dossier et préparation de l'oral.
+**Arbitrages** :
 
-Toutes les tâches sont réalisées, sauf T20, la détection automatique des épisodes, classée Could et abandonnée comme prévu.
+- la comparaison de périodes choisies avant la détection automatique, abandonnée en premier ;
+- l'ONI plutôt que le RONI, pour l'étude historique ;
+- l'import en ligne de commande plutôt qu'une interface d'administration ;
+- oxlint au lieu d'ESLint : Vite installe TypeScript 7, que le module TypeScript d'ESLint ne gère pas encore.
 
-## Planning sur cinq jours
+**Risques et parades** :
 
-- **Jour 1** : installation, conception complète et lancement de la base de données.
-- **Jour 2** : modèles, migration, ETL complet et test des données.
-- **Jour 3** : API, validation des entrées, comparaison, CORS, test de l'API et diagramme de séquence.
-- **Jour 4** : interface, comparaison, vérifications d'accessibilité et test de l'interface.
-- **Jour 5** : Docker Compose, qualité, correction d'anomalie, README et dossier.
+- page NOAA modifiée ou injoignable : copie brute, tests hors ligne, import en échec tracé ;
+- révisions des valeurs récentes : mise à jour au lieu d'un doublon ;
+- Docker Desktop bloqué sur macOS 12 : la version installée suffit ; un plantage au redémarrage a été réglé ;
+- dépassement de temps sur l'interface : abandon de l'extension, ce qui s'est produit ;
+- fuite d'un secret : `.env` ignoré par Git.
 
-L'ordre suit les dépendances : l'API a besoin de données réelles, et l'interface a besoin de routes qui fonctionnent. Le travail a été mené en sessions réparties sur plusieurs semaines, mais dans cet ordre et selon ce découpage.
-
-## Arbitrages
-
-- **La comparaison de périodes choisies avant la détection automatique.** La comparaison suffit au MVP ; la détection était une extension, abandonnée en premier quand le temps a manqué.
-- **L'ONI plutôt que le RONI.** C'est l'indice de référence des études historiques, et le RONI pourrait être ajouté sans changer le modèle.
-- **L'import en ligne de commande plutôt qu'une interface d'administration.** Un seul administrateur, et pas d'authentification à sécuriser.
-- **oxlint plutôt qu'ESLint**, contrairement au plan initial. Le modèle Vite actuel installe TypeScript 7, que le module TypeScript d'ESLint ne prend pas encore en charge. oxlint, fourni par Vite, joue le même rôle sans configuration.
-- **L'API et l'interface lancées hors Docker pendant le développement**, pour profiter du rechargement instantané. Docker Compose sert à la démonstration complète.
-- **La copie brute de la page NOAA conservée dans le dépôt** : environ 160 Ko par import, en échange de la traçabilité et de tests qui fonctionnent hors ligne.
-
-## Risques
-
-- **La NOAA modifie sa page ou la rend inaccessible.** Parade : copie brute datée, tests sur cette copie, import en échec tracé sans toucher aux données en base.
-- **La NOAA révise des valeurs récentes**, ce qui est certain. Parade : l'import met à jour la valeur au lieu de créer un doublon, et la compte dans le bilan.
-- **Docker Desktop ne peut plus être mis à jour sur mon Mac (macOS 12).** Parade : la version installée suffit au projet. Un plantage au redémarrage de Docker s'est produit, réglé en attendant l'arrêt complet avant de relancer.
-- **Plusieurs outils découverts en même temps** (SQLAlchemy, Alembic, FastAPI, Recharts). Parade : avancer par petites étapes, avec un commit à chaque étape qui fonctionne.
-- **Un dépassement de temps sur l'interface**, la journée la plus chargée. Parade : abandon de l'extension, ce qui s'est produit.
-- **Une interprétation scientifique abusive.** Parade : texte généré uniquement à partir des mesures, sans prévision ni « Super El Niño », avec un encadré des limites.
-- **La fuite d'un secret.** Parade : fichier `.env` ignoré par Git, et modèle `.env.example` sans mot de passe.
-
-## Outils et suivi
-
-Outils : VS Code, Git et GitHub, draw.io, Docker Desktop, et Claude Code comme assistant (voir la section 8).
-
-Le suivi s'appuie sur les statuts du backlog, mis à jour au fil du projet, et sur l'historique Git : 44 commits sur 14 journées de travail, du 28 octobre au 19 novembre 2026, au format Conventional Commits (`feat`, `fix`, `test`, `docs`, `style`, `chore`). Chaque étape qui fonctionne a donné lieu à au moins un commit, et chaque test exigé a sa capture dans `docs/screenshots/`.
-
-<div style="page-break-after: always;"></div>
+**Suivi** : statuts du backlog et historique Git, plus de 40 commits au format Conventional Commits, chaque étape fonctionnelle donnant lieu à un commit. Outils : VS Code, Git, draw.io, Docker Desktop, Claude Code.
 
 # 6. Qualité et sécurité
 
-## Stratégie de tests
+## Tests
 
-Les tests portent d'abord sur les fonctions qui contiennent les règles métier, puis sur les points de contact entre les couches. Ils sont tous reproductibles : aucun n'a besoin d'internet, ni de la vraie base de données.
+Sept tests, tous reproductibles sans internet ni vraie base :
 
-- **Données** (`backend/tests/test_transform.py`). Un tableau inventé contient un doublon, une saison invalide et une case vide : seule la ligne valide doit survivre, datée par le mois central. Un second test passe la copie brute NOAA conservée dans le dépôt et vérifie 924 cases lues et 921 valeurs gardées.
-- **API** (`backend/tests/test_api.py`). L'API tourne sur une base SQLite en mémoire, injectée à la place de PostgreSQL grâce aux dépendances de FastAPI. Le filtre 1997-1998 doit renvoyer exactement les trois valeurs de la période, et un début après la fin un code 422.
-- **Interface** (`frontend/src/App.test.tsx`). Le client API est remplacé par une fausse version. Le test change la période comme un visiteur, par les étiquettes des champs, puis vérifie que le nombre de valeurs et le contenu du tableau changent.
-- **Non-régression** (`backend/tests/test_analysis.py` et `frontend/src/interpretation.test.ts`). Ils ont été écrits pour reproduire une anomalie, avant sa correction.
+- **données** : un doublon, une saison invalide et une case vide sont rejetés ; la copie NOAA donne 921 valeurs ;
+- **API** : sur une base SQLite injectée à la place de PostgreSQL, le filtre 1997-1998 renvoie les bonnes valeurs, et un début après la fin un 422 ;
+- **interface** : avec un client API simulé, changer la période met à jour le nombre de valeurs et le tableau ;
+- **non-régression** : deux tests écrits pour reproduire une anomalie avant de la corriger.
 
-Les sept tests passent : cinq côté backend avec Pytest, deux côté interface avec Vitest. Les captures sont dans `docs/screenshots/`. Le code passe aussi Ruff et oxlint sans erreur.
+Les captures sont dans `docs/screenshots/`, et le code passe Ruff et oxlint sans erreur. Limites : pas de test dans un vrai navigateur, ni de la courbe elle-même.
 
-Limites : aucun test de bout en bout dans un vrai navigateur ; SQLite remplace PostgreSQL dans le test d'API ; la courbe n'est pas testée, seul le filtre et les valeurs affichées le sont.
-
-## Vérifications UX et accessibilité
-
-- **Contrastes** calculés selon les WCAG, niveau AA : tous les textes dépassent 4,5:1 (de 5,7:1 à 17,4:1).
-- **Clavier** : le filtre, le tableau et la comparaison s'utilisent entièrement au clavier, avec un contour visible sur l'élément actif.
-- **Responsive** : vérifié sur 375 px de large, sans défilement horizontal.
-- **Lecteurs d'écran** : page en français (`lang="fr"`), balises de structure (en-tête, sections, pied de page), étiquettes sur chaque champ, tableau avec en-têtes de colonnes, messages de chargement et d'erreur annoncés.
-- **Audit automatique** : score d'accessibilité Lighthouse de 100/100.
+**Vérifications UX** : contrastes WCAG AA calculés (5,7:1 au minimum), navigation complète au clavier, affichage vérifié sur 375 px, structure lisible par les lecteurs d'écran, Lighthouse 100/100.
 
 ## Sécurité
 
-- **Secrets.** Le mot de passe de la base est dans `.env`, ignoré par Git. Le dépôt ne contient qu'un modèle sans secret.
-- **Injection SQL.** Toutes les requêtes passent par SQLAlchemy, qui envoie les valeurs séparément du texte SQL. Une recherche dans le code confirme qu'aucune requête n'est construite avec une entrée de l'utilisateur.
-- **Validation des entrées.** Les types des paramètres sont validés par Pydantic, et la règle « début avant la fin » est vérifiée dans l'API. L'interface fait la même vérification pour répondre plus vite, mais l'API ne se fie jamais au navigateur.
-- **Surface exposée.** L'API est en lecture seule et n'accepte que des requêtes GET. CORS n'autorise que l'origine de l'interface. Seuls les champs déclarés dans les schémas sortent de l'API.
-- **Réseaux.** La base n'est pas sur le réseau du serveur web ; en local, son port n'est ouvert que pour la machine elle-même. Seul Caddy est exposé.
-- **Pas de compte à protéger.** Sans interface d'administration, il n'y a ni mot de passe utilisateur ni session à sécuriser : l'import se lance en ligne de commande, sur la machine.
-- **Dépendances.** Leurs versions sont figées dans `requirements.txt` et `package-lock.json`.
-
-Pistes non réalisées : limiter le nombre de requêtes par client, et auditer automatiquement les dépendances (`pip-audit`, `npm audit`).
+- les secrets sont dans `.env`, ignoré par Git ;
+- toutes les requêtes passent par SQLAlchemy, qui les paramètre : aucune n'est construite avec une entrée utilisateur ;
+- les entrées sont validées par Pydantic et par la règle « début avant la fin », côté API ;
+- l'API ne fait que lire, en GET ; CORS n'autorise que l'interface ; seuls les champs des schémas sortent ;
+- la base n'est joignable que par l'API et l'ETL, et seul Caddy est exposé ;
+- sans interface d'administration, il n'y a aucun compte à protéger ;
+- les versions des dépendances sont figées.
 
 ## Performance
 
-- La base contient 921 observations. Chaque appel à l'API fait une à deux requêtes SQL, et l'index créé par la contrainte d'unicité sert le filtrage par indice et par date.
-- L'ETL charge les observations existantes en une seule requête, au lieu d'une requête par valeur, pour savoir quoi insérer, mettre à jour ou ignorer.
-- L'interface n'appelle l'API qu'au clic sur « Appliquer » ou « Comparer », et ignore la réponse d'une requête devenue inutile si le visiteur change de période entre-temps.
-- Le JavaScript livré pèse 613 Ko, soit 182 Ko compressé, surtout à cause de Recharts. Piste : charger la courbe séparément, au moment de l'afficher.
+921 lignes, une ou deux requêtes par appel, servies par l'index d'unicité. L'ETL lit les valeurs existantes en une seule requête. L'interface n'appelle l'API qu'au clic et ignore les réponses devenues inutiles. Le JavaScript pèse 182 Ko compressé, surtout à cause de Recharts : le charger séparément serait la prochaine optimisation.
 
-## Traitement des anomalies
+## Anomalies corrigées
 
-Chaque anomalie suit la même démarche : la reproduire, écrire un test qui échoue quand c'est possible, corriger, relancer tous les tests, puis la documenter (`docs/conception/06-anomalies.md`).
-
-- **Interprétation incomplète d'une période mixte.** Sur 1997-1998, le texte ne mentionnait qu'El Niño, alors que l'ONI descend à -1,5 °C fin 1998. La phase était déduite du seul pic. L'API renvoie désormais le minimum et le maximum, et l'interprétation teste chaque seuil séparément. Deux tests de non-régression, en échec avant la correction, passent après.
-- **Contraste des textes de seuil.** Recharts les affichait en gris clair (3,9:1). Leur couleur a été fixée à un gris foncé (8,9:1).
-- **Débordement de la courbe sur mobile.** Après un redimensionnement, la courbe gardait sa largeur et élargissait la page. Son conteneur interdit désormais le débordement.
-
-<div style="page-break-after: always;"></div>
+- **Période mixte** : sur 1997-1998, le texte ne citait qu'El Niño alors que l'ONI descend à -1,5 °C. L'API renvoie désormais le minimum et le maximum, et chaque seuil est testé séparément. Deux tests, en échec avant la correction, passent après.
+- **Contraste** : les textes de seuil de Recharts étaient trop pâles (3,9:1) ; leur couleur a été corrigée (8,9:1).
+- **Mobile** : la courbe débordait après un redimensionnement ; son conteneur l'en empêche désormais.
 
 # 7. Déploiement proposé
 
-Le déploiement n'a pas été réalisé, comme le permet le sujet. Cette section décrit la cible et la procédure, à partir du `compose.yaml` déjà testé en local.
+Le déploiement n'est pas réalisé, comme le permet le sujet.
 
-## Hébergement
+**Hébergement** : un VPS Hetzner CX22 (2 processeurs, 4 Go de mémoire, 40 Go de disque) sous Debian 12, en Europe. PostgreSQL, l'API et Caddy occupent moins de 400 Mo, l'import environ 300 Mo pendant quelques secondes : 4 Go laissent une large marge.
 
-Un VPS Linux chez Hetzner, de type CX22 : 2 processeurs virtuels, 4 Go de mémoire, 40 Go de disque, hébergé en Europe. Système : Debian 12.
-
-L'estimation de la mémoire tient largement dans 4 Go : environ 200 Mo pour PostgreSQL, 100 Mo pour l'API, 50 Mo pour Caddy, et 300 Mo pendant les quelques secondes de l'import (Pandas). La base pèse quelques mégaoctets. Le reste laisse de la marge pour le système, les sauvegardes et les mises à jour.
-
-## Conteneurs et réseaux
-
-Le `compose.yaml` local sert de base, avec quatre changements pour la production :
-
-- la base ne publie plus aucun port ;
-- Caddy publie les ports 80 et 443, et garde ses certificats dans un volume ;
-- chaque service redémarre seul après une panne ou un redémarrage du serveur ;
-- `CORS_ORIGINS` prend l'adresse publique du site.
+**Conteneurs** : le `compose.yaml` local sert de base. En production, la base ne publie plus de port, Caddy publie 80 et 443 et garde ses certificats dans un volume, chaque service redémarre seul, et `CORS_ORIGINS` prend l'adresse publique.
 
 ```yaml
   frontend:
     build: ./frontend
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - caddy_data:/data
+    ports: ["80:80", "443:443"]
+    volumes: ["caddy_data:/data"]
     restart: unless-stopped
 ```
 
-Les réseaux restent ceux du local : `frontend` relie Caddy et l'API, `backend` relie l'API, l'ETL et PostgreSQL. La base n'est jamais joignable depuis Internet.
-
-## Reverse proxy et HTTPS
-
-Caddy est le seul point d'entrée. Il sert les fichiers de l'interface, relaie `/api/` vers FastAPI, et obtient puis renouvelle seul le certificat HTTPS (Let's Encrypt). Les visites en HTTP sont redirigées vers HTTPS.
+**Caddy** est le seul point d'entrée : il sert l'interface, relaie `/api/` vers FastAPI, et obtient et renouvelle seul le certificat HTTPS, avec redirection depuis HTTP.
 
 ```
 enso-monitor.example.org {
 	encode gzip
-	header Strict-Transport-Security "max-age=31536000"
-
 	handle /api/* {
 		reverse_proxy api:8000
 	}
-
 	handle {
 		root * /srv
 		file_server
@@ -396,108 +219,35 @@ enso-monitor.example.org {
 }
 ```
 
-Seuls les ports 80 et 443 sont ouverts au public. Le port 22 reste ouvert pour l'administration, accessible uniquement par clé SSH.
+**Configuration** : `.env` créé sur le serveur et lisible par un seul utilisateur ; SSH par clé uniquement, sans connexion root ; pare-feu `ufw` n'ouvrant que 22, 80 et 443 ; correctifs Debian automatiques ; import mensuel par une tâche cron le 6 de chaque mois.
 
-## Configuration et accès
+**Mise à jour** : sauvegarder la base, `git pull` ou passer sur une version étiquetée, `docker compose up -d --build` (les migrations s'appliquent au démarrage de l'API), puis vérifier `/api/v1/health`.
 
-- **Secrets.** Le fichier `.env` est créé sur le serveur, lisible seulement par l'utilisateur qui lance l'application (`chmod 600`). Il n'est jamais versionné.
-- **SSH.** Connexion par clé uniquement, avec un utilisateur dédié : mot de passe et compte root désactivés pour SSH.
-- **Pare-feu.** `ufw` refuse tout le trafic entrant, sauf les ports 22, 80 et 443.
-- **Mises à jour du système.** Les correctifs de sécurité de Debian s'installent automatiquement (`unattended-upgrades`).
-- **Import mensuel.** Une tâche cron lance `docker compose run --rm etl` le 6 de chaque mois, après la publication de la NOAA.
+**Exploitation** :
 
-## Mise à jour de l'application
+- **sauvegardes** : `pg_dump` quotidien compressé, conservé 14 jours et copié hors du serveur ;
+- **restauration** : le fichier est rejoué dans une base vide avec `psql`, et testé régulièrement en local ;
+- **journaux** : `docker compose logs`, avec rotation ; les imports sont tracés en base ;
+- **supervision** : un service extérieur interroge `/api/v1/health` chaque minute et alerte en cas d'échec ;
+- **retour arrière** : revenir à l'étiquette Git précédente, et si besoin `alembic downgrade` ou la sauvegarde de la veille.
 
-1. Sauvegarder la base.
-2. Récupérer la nouvelle version : `git pull`, ou `git checkout` d'une version étiquetée.
-3. Reconstruire et relancer : `docker compose up -d --build`. Les migrations Alembic s'appliquent au démarrage de l'API.
-4. Vérifier `https://enso-monitor.example.org/api/v1/health`, puis l'affichage de la courbe.
+**Pannes** : NOAA injoignable, l'import échoue sans toucher au site ; API arrêtée, alerte puis redémarrage automatique ; base corrompue, restauration puis nouvel import ; serveur perdu, nouveau VPS et restauration en une heure environ.
 
-## Exploitation
-
-- **Sauvegardes.** Un `pg_dump` quotidien, compressé, conservé 14 jours, puis copié hors du serveur (par exemple un espace de stockage Hetzner). Les copies brutes de la NOAA sont en plus versionnées dans Git.
-
-```bash
-docker compose exec -T db pg_dump -U enso enso_monitor | gzip > backups/enso-$(date +%F).sql.gz
-```
-
-- **Restauration.** Sur une base vide, le fichier est rejoué dans PostgreSQL. La restauration est testée régulièrement sur une machine locale : une sauvegarde jamais restaurée n'est pas une garantie.
-
-```bash
-gunzip -c backups/enso-AAAA-MM-JJ.sql.gz | docker compose exec -T db psql -U enso -d enso_monitor
-```
-
-- **Journaux.** `docker compose logs` pour chaque service, avec une rotation de la taille des journaux pour ne pas remplir le disque. Les imports sont tracés en base, avec leur statut.
-- **Supervision.** Un service extérieur interroge `/api/v1/health` chaque minute, et envoie une alerte si la réponse n'arrive pas : cette route vérifie l'API et la base à la fois. Un import en échec se repère par son statut `failed`.
-- **Retour arrière.** Chaque mise en production correspond à une version étiquetée dans Git. En cas de problème, on revient à l'étiquette précédente et on relance. Si une migration est en cause, `alembic downgrade` la défait, ou la sauvegarde faite juste avant est restaurée.
-
-## Gestion d'une panne
-
-- **La NOAA est injoignable** : l'import échoue et le signale, le site continue avec les données déjà en base.
-- **L'API ne répond plus** : l'alerte de supervision se déclenche, les journaux indiquent la cause, et le conteneur redémarre seul s'il s'est arrêté.
-- **La base est corrompue** : restauration de la dernière sauvegarde, puis nouvel import pour récupérer les valeurs publiées depuis.
-- **Le serveur est perdu** : nouveau VPS, installation de Docker, clonage du dépôt, restauration de la sauvegarde. Compter environ une heure.
-
-## Capacité et limites
-
-Un seul serveur est un point unique de panne : s'il tombe, le site est indisponible jusqu'à la remise en route. Pour un site de consultation à faible trafic, ce compromis est acceptable. La montée en charge se ferait d'abord en prenant un VPS plus puissant.
-
-Pistes d'optimisation simples :
-
-- mettre en cache les réponses de l'API, puisque les données ne changent qu'une fois par mois ;
-- charger la courbe séparément, pour alléger le JavaScript livré au premier affichage ;
-- compresser les réponses, ce que fait déjà `encode gzip` dans Caddy.
-
-<div style="page-break-after: always;"></div>
+**Limites** : un seul serveur est un point unique de panne, acceptable pour un site de consultation à faible trafic. Pistes : un VPS plus puissant, un cache des réponses de l'API (les données ne changent qu'une fois par mois), le chargement séparé de la courbe.
 
 # 8. Bilan et sources
 
-## Bilan
+Le MVP est complet : import traçable sans doublon, API documentée, courbe filtrable et accessible, comparaison prudente. Les trois tests exigés passent, avec deux tests de non-régression, et l'application se lance avec Docker Compose. Seule l'extension de détection des épisodes manque. Le modèle de données, conçu avant le code, n'a pas eu à changer.
 
-Le MVP est complet : import NOAA traçable et sans doublon, API documentée et validée, courbe filtrable et accessible, comparaison de deux épisodes avec une interprétation prudente. Les trois tests exigés passent, avec deux tests de non-régression en plus, et l'application complète se lance avec Docker Compose. Seule l'extension de détection automatique des épisodes n'a pas été réalisée.
+**Apports de l'IA** (Claude, via Claude Code) : un plan découpé en étapes vérifiées une à une, des propositions de code que j'ai saisies, relues, exécutées et vérifiées, une aide à la rédaction et une relecture.
 
-Les choix qui ont le plus compté :
+**Ses limites** : le plan initial prévoyait ESLint, devenu incompatible ; certaines propositions étaient imparfaites (un avertissement du linter dans le hook, des textes de seuil mal placés), repérées par les contrôles et la vérification visuelle ; il fallait parfois faire préciser des consignes. Je n'ai gardé que ce que je savais justifier.
 
-- **Concevoir avant de coder.** Le modèle de données n'a pas changé depuis le diagramme de classes, à l'ajout près du minimum et du maximum dans la réponse de comparaison.
-- **Séparer l'ETL de l'API.** Chaque programme a un seul rôle, et une panne de la NOAA ne touche pas le site.
-- **Garder une copie brute de chaque import.** Elle rend chaque valeur vérifiable, et permet de tester la transformation sans internet.
+**Difficultés** : la page NOAA contient onze tableaux HTML, dont l'en-tête utile est répété tous les dix ans, d'où une détection du bon tableau par sa première ligne ; Docker Desktop ne peut plus être mis à jour sur macOS 12 ; quelques erreurs de manipulation, réglées en lisant les messages d'erreur jusqu'au bout. Avec plus de temps : détection des épisodes, RONI, test dans un navigateur, import planifié.
 
-## Apports et limites de l'IA
+**Sources** :
 
-J'ai utilisé Claude (Anthropic), via Claude Code dans VS Code, comme assistant tout au long du projet.
-
-Ce qu'il m'a apporté :
-
-- un plan découpé en étapes courtes, chacune vérifiée avant de passer à la suivante ;
-- des propositions de code, que j'ai saisies, relues, exécutées et vérifiées moi-même ;
-- une aide à la rédaction de la documentation, et une relecture du code et des résultats.
-
-Ses limites, constatées pendant le projet :
-
-- **Un plan qui vieillit.** Le plan initial prévoyait ESLint ; au moment de créer l'interface, la version de TypeScript installée par Vite n'était pas compatible. Il a fallu vérifier et changer d'outil.
-- **Des propositions imparfaites.** Une première version du hook de chargement déclenchait un avertissement du linter, et le placement proposé pour les textes de seuil de la courbe était inversé. Les contrôles automatiques et la vérification visuelle les ont repérés.
-- **Des consignes parfois floues**, notamment pour dessiner les diagrammes ou ranger les captures. Il fallait les faire préciser avant de les appliquer.
-- **Elle ne remplace pas la compréhension.** Chaque choix devait pouvoir être justifié devant un jury : je n'ai gardé que ce que je savais expliquer.
-
-## Difficultés et corrections
-
-- **La page NOAA ne propose pas de fichier brut.** Elle contient onze tableaux HTML, dont l'en-tête du tableau utile est répété tous les dix ans. La transformation identifie le bon tableau par sa première ligne et retire les en-têtes répétés.
-- **Docker Desktop sur macOS 12.** Il ne peut plus être mis à jour, et il a planté une fois au redémarrage. Il fallait attendre son arrêt complet avant de le relancer.
-- **Des erreurs de manipulation**, chacune réglée en lisant le message d'erreur jusqu'au bout : une commande lancée depuis le mauvais dossier, un environnement Python non activé, un composant enregistré en `.ts` au lieu de `.tsx`, une accolade manquante.
-- **Trois anomalies corrigées**, décrites dans la section 6 : l'interprétation incomplète d'une période mixte, le contraste des textes de seuil et le débordement de la courbe sur mobile.
-
-Avec plus de temps, j'ajouterais la détection automatique des épisodes, le RONI comme second indice, un test de bout en bout dans un navigateur, et un import planifié.
-
-## Sources
-
-Données et science :
-
-- NOAA Climate Prediction Center, Oceanic Niño Index, version 6 : https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/oni/v6/index.php
-- NOAA Climate Prediction Center, Relative Oceanic Niño Index : https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/
-- National Weather Service, communiqué 26-05 sur l'adoption du RONI : https://www.weather.gov/media/notification/pdf_2026/pns26-05_Relative_ONI.pdf
-
-Référentiels et documentation technique :
-
-- France compétences, RNCP 36146 : https://www.francecompetences.fr/recherche/rncp/36146
-- W3C, Web Content Accessibility Guidelines (WCAG) 2.1 : https://www.w3.org/TR/WCAG21/
-- Documentations officielles : FastAPI, SQLAlchemy, Alembic, Pandas, React, Vite, Recharts, Docker Compose (https://docs.docker.com/compose/) et Caddy (https://caddyserver.com/docs/).
+- NOAA CPC, Oceanic Niño Index v6 : https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/oni/v6/index.php
+- NOAA CPC, Relative Oceanic Niño Index : https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/
+- National Weather Service, communiqué 26-05 : https://www.weather.gov/media/notification/pdf_2026/pns26-05_Relative_ONI.pdf
+- France compétences, RNCP 36146 ; W3C, WCAG 2.1 ; documentations de FastAPI, SQLAlchemy, Alembic, React, Vite, Recharts, Docker Compose et Caddy.
