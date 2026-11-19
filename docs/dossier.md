@@ -289,3 +289,55 @@ L'ordre suit les dépendances : l'API a besoin de données réelles, et l'interf
 Outils : VS Code, Git et GitHub, draw.io, Docker Desktop, et Claude Code comme assistant (voir la section 8).
 
 Le suivi s'appuie sur les statuts du backlog, mis à jour au fil du projet, et sur l'historique Git : 44 commits sur 14 journées de travail, du 28 octobre au 19 novembre 2026, au format Conventional Commits (`feat`, `fix`, `test`, `docs`, `style`, `chore`). Chaque étape qui fonctionne a donné lieu à au moins un commit, et chaque test exigé a sa capture dans `docs/screenshots/`.
+
+<div style="page-break-after: always;"></div>
+
+# 6. Qualité et sécurité
+
+## Stratégie de tests
+
+Les tests portent d'abord sur les fonctions qui contiennent les règles métier, puis sur les points de contact entre les couches. Ils sont tous reproductibles : aucun n'a besoin d'internet, ni de la vraie base de données.
+
+- **Données** (`backend/tests/test_transform.py`). Un tableau inventé contient un doublon, une saison invalide et une case vide : seule la ligne valide doit survivre, datée par le mois central. Un second test passe la copie brute NOAA conservée dans le dépôt et vérifie 924 cases lues et 921 valeurs gardées.
+- **API** (`backend/tests/test_api.py`). L'API tourne sur une base SQLite en mémoire, injectée à la place de PostgreSQL grâce aux dépendances de FastAPI. Le filtre 1997-1998 doit renvoyer exactement les trois valeurs de la période, et un début après la fin un code 422.
+- **Interface** (`frontend/src/App.test.tsx`). Le client API est remplacé par une fausse version. Le test change la période comme un visiteur, par les étiquettes des champs, puis vérifie que le nombre de valeurs et le contenu du tableau changent.
+- **Non-régression** (`backend/tests/test_analysis.py` et `frontend/src/interpretation.test.ts`). Ils ont été écrits pour reproduire une anomalie, avant sa correction.
+
+Les sept tests passent : cinq côté backend avec Pytest, deux côté interface avec Vitest. Les captures sont dans `docs/screenshots/`. Le code passe aussi Ruff et oxlint sans erreur.
+
+Limites : aucun test de bout en bout dans un vrai navigateur ; SQLite remplace PostgreSQL dans le test d'API ; la courbe n'est pas testée, seul le filtre et les valeurs affichées le sont.
+
+## Vérifications UX et accessibilité
+
+- **Contrastes** calculés selon les WCAG, niveau AA : tous les textes dépassent 4,5:1 (de 5,7:1 à 17,4:1).
+- **Clavier** : le filtre, le tableau et la comparaison s'utilisent entièrement au clavier, avec un contour visible sur l'élément actif.
+- **Responsive** : vérifié sur 375 px de large, sans défilement horizontal.
+- **Lecteurs d'écran** : page en français (`lang="fr"`), balises de structure (en-tête, sections, pied de page), étiquettes sur chaque champ, tableau avec en-têtes de colonnes, messages de chargement et d'erreur annoncés.
+- **Audit automatique** : score d'accessibilité Lighthouse de 100/100.
+
+## Sécurité
+
+- **Secrets.** Le mot de passe de la base est dans `.env`, ignoré par Git. Le dépôt ne contient qu'un modèle sans secret.
+- **Injection SQL.** Toutes les requêtes passent par SQLAlchemy, qui envoie les valeurs séparément du texte SQL. Une recherche dans le code confirme qu'aucune requête n'est construite avec une entrée de l'utilisateur.
+- **Validation des entrées.** Les types des paramètres sont validés par Pydantic, et la règle « début avant la fin » est vérifiée dans l'API. L'interface fait la même vérification pour répondre plus vite, mais l'API ne se fie jamais au navigateur.
+- **Surface exposée.** L'API est en lecture seule et n'accepte que des requêtes GET. CORS n'autorise que l'origine de l'interface. Seuls les champs déclarés dans les schémas sortent de l'API.
+- **Réseaux.** La base n'est pas sur le réseau du serveur web ; en local, son port n'est ouvert que pour la machine elle-même. Seul Caddy est exposé.
+- **Pas de compte à protéger.** Sans interface d'administration, il n'y a ni mot de passe utilisateur ni session à sécuriser : l'import se lance en ligne de commande, sur la machine.
+- **Dépendances.** Leurs versions sont figées dans `requirements.txt` et `package-lock.json`.
+
+Pistes non réalisées : limiter le nombre de requêtes par client, et auditer automatiquement les dépendances (`pip-audit`, `npm audit`).
+
+## Performance
+
+- La base contient 921 observations. Chaque appel à l'API fait une à deux requêtes SQL, et l'index créé par la contrainte d'unicité sert le filtrage par indice et par date.
+- L'ETL charge les observations existantes en une seule requête, au lieu d'une requête par valeur, pour savoir quoi insérer, mettre à jour ou ignorer.
+- L'interface n'appelle l'API qu'au clic sur « Appliquer » ou « Comparer », et ignore la réponse d'une requête devenue inutile si le visiteur change de période entre-temps.
+- Le JavaScript livré pèse 613 Ko, soit 182 Ko compressé, surtout à cause de Recharts. Piste : charger la courbe séparément, au moment de l'afficher.
+
+## Traitement des anomalies
+
+Chaque anomalie suit la même démarche : la reproduire, écrire un test qui échoue quand c'est possible, corriger, relancer tous les tests, puis la documenter (`docs/conception/06-anomalies.md`).
+
+- **Interprétation incomplète d'une période mixte.** Sur 1997-1998, le texte ne mentionnait qu'El Niño, alors que l'ONI descend à -1,5 °C fin 1998. La phase était déduite du seul pic. L'API renvoie désormais le minimum et le maximum, et l'interprétation teste chaque seuil séparément. Deux tests de non-régression, en échec avant la correction, passent après.
+- **Contraste des textes de seuil.** Recharts les affichait en gris clair (3,9:1). Leur couleur a été fixée à un gris foncé (8,9:1).
+- **Débordement de la courbe sur mobile.** Après un redimensionnement, la courbe gardait sa largeur et élargissait la page. Son conteneur interdit désormais le débordement.
