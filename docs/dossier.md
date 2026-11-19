@@ -341,3 +341,109 @@ Chaque anomalie suit la même démarche : la reproduire, écrire un test qui éc
 - **Interprétation incomplète d'une période mixte.** Sur 1997-1998, le texte ne mentionnait qu'El Niño, alors que l'ONI descend à -1,5 °C fin 1998. La phase était déduite du seul pic. L'API renvoie désormais le minimum et le maximum, et l'interprétation teste chaque seuil séparément. Deux tests de non-régression, en échec avant la correction, passent après.
 - **Contraste des textes de seuil.** Recharts les affichait en gris clair (3,9:1). Leur couleur a été fixée à un gris foncé (8,9:1).
 - **Débordement de la courbe sur mobile.** Après un redimensionnement, la courbe gardait sa largeur et élargissait la page. Son conteneur interdit désormais le débordement.
+
+<div style="page-break-after: always;"></div>
+
+# 7. Déploiement proposé
+
+Le déploiement n'a pas été réalisé, comme le permet le sujet. Cette section décrit la cible et la procédure, à partir du `compose.yaml` déjà testé en local.
+
+## Hébergement
+
+Un VPS Linux chez Hetzner, de type CX22 : 2 processeurs virtuels, 4 Go de mémoire, 40 Go de disque, hébergé en Europe. Système : Debian 12.
+
+L'estimation de la mémoire tient largement dans 4 Go : environ 200 Mo pour PostgreSQL, 100 Mo pour l'API, 50 Mo pour Caddy, et 300 Mo pendant les quelques secondes de l'import (Pandas). La base pèse quelques mégaoctets. Le reste laisse de la marge pour le système, les sauvegardes et les mises à jour.
+
+## Conteneurs et réseaux
+
+Le `compose.yaml` local sert de base, avec quatre changements pour la production :
+
+- la base ne publie plus aucun port ;
+- Caddy publie les ports 80 et 443, et garde ses certificats dans un volume ;
+- chaque service redémarre seul après une panne ou un redémarrage du serveur ;
+- `CORS_ORIGINS` prend l'adresse publique du site.
+
+```yaml
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+    restart: unless-stopped
+```
+
+Les réseaux restent ceux du local : `frontend` relie Caddy et l'API, `backend` relie l'API, l'ETL et PostgreSQL. La base n'est jamais joignable depuis Internet.
+
+## Reverse proxy et HTTPS
+
+Caddy est le seul point d'entrée. Il sert les fichiers de l'interface, relaie `/api/` vers FastAPI, et obtient puis renouvelle seul le certificat HTTPS (Let's Encrypt). Les visites en HTTP sont redirigées vers HTTPS.
+
+```
+enso-monitor.example.org {
+	encode gzip
+	header Strict-Transport-Security "max-age=31536000"
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		root * /srv
+		file_server
+	}
+}
+```
+
+Seuls les ports 80 et 443 sont ouverts au public. Le port 22 reste ouvert pour l'administration, accessible uniquement par clé SSH.
+
+## Configuration et accès
+
+- **Secrets.** Le fichier `.env` est créé sur le serveur, lisible seulement par l'utilisateur qui lance l'application (`chmod 600`). Il n'est jamais versionné.
+- **SSH.** Connexion par clé uniquement, avec un utilisateur dédié : mot de passe et compte root désactivés pour SSH.
+- **Pare-feu.** `ufw` refuse tout le trafic entrant, sauf les ports 22, 80 et 443.
+- **Mises à jour du système.** Les correctifs de sécurité de Debian s'installent automatiquement (`unattended-upgrades`).
+- **Import mensuel.** Une tâche cron lance `docker compose run --rm etl` le 6 de chaque mois, après la publication de la NOAA.
+
+## Mise à jour de l'application
+
+1. Sauvegarder la base.
+2. Récupérer la nouvelle version : `git pull`, ou `git checkout` d'une version étiquetée.
+3. Reconstruire et relancer : `docker compose up -d --build`. Les migrations Alembic s'appliquent au démarrage de l'API.
+4. Vérifier `https://enso-monitor.example.org/api/v1/health`, puis l'affichage de la courbe.
+
+## Exploitation
+
+- **Sauvegardes.** Un `pg_dump` quotidien, compressé, conservé 14 jours, puis copié hors du serveur (par exemple un espace de stockage Hetzner). Les copies brutes de la NOAA sont en plus versionnées dans Git.
+
+```bash
+docker compose exec -T db pg_dump -U enso enso_monitor | gzip > backups/enso-$(date +%F).sql.gz
+```
+
+- **Restauration.** Sur une base vide, le fichier est rejoué dans PostgreSQL. La restauration est testée régulièrement sur une machine locale : une sauvegarde jamais restaurée n'est pas une garantie.
+
+```bash
+gunzip -c backups/enso-AAAA-MM-JJ.sql.gz | docker compose exec -T db psql -U enso -d enso_monitor
+```
+
+- **Journaux.** `docker compose logs` pour chaque service, avec une rotation de la taille des journaux pour ne pas remplir le disque. Les imports sont tracés en base, avec leur statut.
+- **Supervision.** Un service extérieur interroge `/api/v1/health` chaque minute, et envoie une alerte si la réponse n'arrive pas : cette route vérifie l'API et la base à la fois. Un import en échec se repère par son statut `failed`.
+- **Retour arrière.** Chaque mise en production correspond à une version étiquetée dans Git. En cas de problème, on revient à l'étiquette précédente et on relance. Si une migration est en cause, `alembic downgrade` la défait, ou la sauvegarde faite juste avant est restaurée.
+
+## Gestion d'une panne
+
+- **La NOAA est injoignable** : l'import échoue et le signale, le site continue avec les données déjà en base.
+- **L'API ne répond plus** : l'alerte de supervision se déclenche, les journaux indiquent la cause, et le conteneur redémarre seul s'il s'est arrêté.
+- **La base est corrompue** : restauration de la dernière sauvegarde, puis nouvel import pour récupérer les valeurs publiées depuis.
+- **Le serveur est perdu** : nouveau VPS, installation de Docker, clonage du dépôt, restauration de la sauvegarde. Compter environ une heure.
+
+## Capacité et limites
+
+Un seul serveur est un point unique de panne : s'il tombe, le site est indisponible jusqu'à la remise en route. Pour un site de consultation à faible trafic, ce compromis est acceptable. La montée en charge se ferait d'abord en prenant un VPS plus puissant.
+
+Pistes d'optimisation simples :
+
+- mettre en cache les réponses de l'API, puisque les données ne changent qu'une fois par mois ;
+- charger la courbe séparément, pour alléger le JavaScript livré au premier affichage ;
+- compresser les réponses, ce que fait déjà `encode gzip` dans Caddy.
