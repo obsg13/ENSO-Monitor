@@ -148,3 +148,93 @@ Justification des cardinalités :
 - **ClimateIndex 1 — 0..\* ImportRun.** L'import est relancé à chaque mise à jour de la NOAA, et chaque exécution concerne un seul indice.
 - **ClimateIndex 1 — 0..\* Observation.** Une valeur n'a de sens que rattachée à son indice.
 - **ImportRun 1 — 0..\* Observation.** Chaque valeur est rattachée à l'import qui l'a écrite ou révisée en dernier : c'est la traçabilité. Un import sans nouveauté n'écrit aucune valeur, d'où le minimum à 0.
+
+<div style="page-break-after: always;"></div>
+
+# 4. Architecture technique
+
+## Composants et flux de données
+
+Diagramme : [docs/diagrams/architecture.drawio.svg](diagrams/architecture.drawio.svg)
+
+L'application est découpée en quatre composants, chacun avec une seule responsabilité :
+
+- **L'interface React** affiche la courbe, le filtre, le tableau et la comparaison. Elle n'appelle que l'API.
+- **L'API FastAPI** valide les paramètres, lit la base, calcule les indicateurs de comparaison et renvoie du JSON. Elle ne fait que lire.
+- **PostgreSQL** stocke les sources, les indices, les imports et les observations.
+- **Le worker ETL** télécharge la page NOAA, en garde une copie brute, nettoie les valeurs et les écrit en base. C'est le seul composant qui écrit.
+
+Les données circulent dans un seul sens : NOAA, ETL, PostgreSQL, API, puis navigateur. Le navigateur ne parle jamais directement à la base.
+
+## Décisions d'architecture
+
+### PostgreSQL pour les données
+
+- **Besoin** : stocker les observations et leur provenance, en garantissant qu'aucune donnée incohérente n'entre en base.
+- **Options** : des fichiers CSV, SQLite, PostgreSQL.
+- **Choix** : PostgreSQL, imposé par le sujet et adapté au besoin.
+- **Avantages** : les contraintes (unicité, plages de valeurs, clés étrangères) sont appliquées par la base elle-même ; l'API et l'ETL y accèdent en même temps sans conflit.
+- **Limites** : un service de plus à faire tourner, alors que le volume reste faible (environ 920 lignes).
+- **Vérification** : un second import n'insère aucune ligne, et la base contient 921 dates distinctes pour 921 observations.
+
+### Un ETL séparé de l'API
+
+- **Besoin** : importer les données une fois par mois sans perturber la consultation.
+- **Options** : appeler la NOAA à chaque requête de l'API, lancer l'import au démarrage de l'API, ou en faire un programme à part.
+- **Choix** : un worker séparé, lancé à la demande (`docker compose run --rm etl`).
+- **Avantages** : une panne de la NOAA ne touche pas le site ; l'API reste en lecture seule ; chaque programme a un seul rôle.
+- **Limites** : l'import est manuel, sans planification automatique.
+- **Vérification** : chaque import est tracé avec son statut ; un import en échec est enregistré `failed` sans modifier les données déjà en base.
+
+### Une API versionnée sous /api/v1
+
+- **Besoin** : un contrat stable entre l'API et l'interface.
+- **Options** : des routes sans préfixe, une version passée dans un en-tête HTTP, ou un préfixe dans l'adresse.
+- **Choix** : le préfixe `/api/v1`, porté par un routeur FastAPI.
+- **Avantages** : une évolution incompatible pourra être publiée sous `/api/v2` sans casser l'interface ; le reverse proxy peut router tout `/api/` vers FastAPI.
+- **Limites** : maintenir plusieurs versions en parallèle aurait un coût, inutile tant qu'il n'y en a qu'une.
+- **Vérification** : la documentation OpenAPI générée liste les quatre routes, et le test d'API appelle `/api/v1/observations`.
+
+### Docker Compose pour l'exécution
+
+- **Besoin** : lancer la base, l'API, l'ETL et l'interface de la même façon sur toutes les machines.
+- **Options** : une installation manuelle, des conteneurs lancés un par un, Docker Compose, Kubernetes.
+- **Choix** : Docker Compose, avec deux réseaux et un volume pour la base.
+- **Avantages** : une commande suffit, les versions sont fixées, et la base n'est joignable que par l'API et l'ETL. Le même fichier sert de base au déploiement.
+- **Limites** : tout tourne sur un seul serveur, sans redondance.
+- **Vérification** : `docker compose up -d --build` lance l'application complète, et l'import fonctionne dans un conteneur.
+
+### Un graphique accessible
+
+- **Besoin** : rendre la courbe compréhensible par tous, y compris avec un lecteur d'écran ou une mauvaise perception des couleurs.
+- **Options** : un graphique seul, une image fixe, ou un graphique accompagné d'une alternative textuelle.
+- **Choix** : une courbe Recharts, des seuils signalés par un texte et pas seulement par une couleur, une légende descriptive, et un tableau qui suit le même filtre.
+- **Avantages** : les mêmes données restent lisibles sans voir le graphique.
+- **Limites** : le tableau complet est long (921 lignes), d'où son affichage replié par défaut ; Recharts alourdit le JavaScript livré (environ 600 Ko).
+- **Vérification** : score d'accessibilité Lighthouse de 100/100, contrastes calculés, navigation complète au clavier.
+
+### La traçabilité des données
+
+- **Besoin** : pouvoir prouver d'où vient chaque valeur affichée.
+- **Options** : importer sans trace, écrire un journal texte, ou enregistrer chaque import en base avec la copie brute.
+- **Choix** : une table `import_run` et une copie brute datée de la page NOAA, avec son empreinte SHA-256.
+- **Avantages** : chaque valeur remonte à son import, au fichier d'origine et à la source ; n'importe qui peut vérifier l'empreinte ; les tests tournent sur la copie, sans internet.
+- **Limites** : une copie d'environ 160 Ko est conservée à chaque import, sans purge.
+- **Vérification** : l'empreinte recalculée avec `shasum -a 256` est identique à celle enregistrée en base.
+
+## Schéma relationnel
+
+Notation : clé primaire en gras, `#` pour une clé étrangère.
+
+- source (**id**, name, url)
+- climate_index (**id**, #source_id, code, name, unit, dataset_version)
+- import_run (**id**, #climate_index_id, started_at, finished_at, raw_file_path, sha256, rows_read, rows_inserted, rows_updated, rows_skipped, status)
+- observation (**id**, #climate_index_id, #import_run_id, season, period_date, value)
+
+**Intégrité.** Chaque clé étrangère suit une association du diagramme de classes. La contrainte `uq_observation_index_date` interdit deux valeurs pour le même indice à la même date. Trois contrôles refusent les données invalides : une valeur hors de -5 à +5 °C, une saison inconnue, ou un statut d'import autre que `running`, `success` ou `failed`. Le code d'un indice est unique, et seules les colonnes de fin d'import (`finished_at`, `raw_file_path`, `sha256`) peuvent rester vides tant que l'import n'a pas abouti.
+
+**Index.** La contrainte d'unicité sur (climate_index_id, period_date) crée un index qui sert aussi la requête principale de l'API : les observations d'un indice sur une période. Pour ce volume, aucun autre index n'est nécessaire.
+
+**Migrations.** Alembic crée le schéma à partir des modèles SQLAlchemy. Toute évolution future de structure passera par une nouvelle migration versionnée, réversible.
+
+**Provenance.** Une observation renvoie à son import (date, copie brute, empreinte), qui renvoie à l'indice (ONI, °C, ERSSTv6), qui renvoie à la source (NOAA CPC et l'adresse de sa page).
