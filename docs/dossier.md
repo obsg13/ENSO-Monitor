@@ -447,3 +447,57 @@ Pistes d'optimisation simples :
 - mettre en cache les réponses de l'API, puisque les données ne changent qu'une fois par mois ;
 - charger la courbe séparément, pour alléger le JavaScript livré au premier affichage ;
 - compresser les réponses, ce que fait déjà `encode gzip` dans Caddy.
+
+<div style="page-break-after: always;"></div>
+
+# 8. Bilan et sources
+
+## Bilan
+
+Le MVP est complet : import NOAA traçable et sans doublon, API documentée et validée, courbe filtrable et accessible, comparaison de deux épisodes avec une interprétation prudente. Les trois tests exigés passent, avec deux tests de non-régression en plus, et l'application complète se lance avec Docker Compose. Seule l'extension de détection automatique des épisodes n'a pas été réalisée.
+
+Les choix qui ont le plus compté :
+
+- **Concevoir avant de coder.** Le modèle de données n'a pas changé depuis le diagramme de classes, à l'ajout près du minimum et du maximum dans la réponse de comparaison.
+- **Séparer l'ETL de l'API.** Chaque programme a un seul rôle, et une panne de la NOAA ne touche pas le site.
+- **Garder une copie brute de chaque import.** Elle rend chaque valeur vérifiable, et permet de tester la transformation sans internet.
+
+## Apports et limites de l'IA
+
+J'ai utilisé Claude (Anthropic), via Claude Code dans VS Code, comme assistant tout au long du projet.
+
+Ce qu'il m'a apporté :
+
+- un plan découpé en étapes courtes, chacune vérifiée avant de passer à la suivante ;
+- des propositions de code, que j'ai saisies, relues, exécutées et vérifiées moi-même ;
+- une aide à la rédaction de la documentation, et une relecture du code et des résultats.
+
+Ses limites, constatées pendant le projet :
+
+- **Un plan qui vieillit.** Le plan initial prévoyait ESLint ; au moment de créer l'interface, la version de TypeScript installée par Vite n'était pas compatible. Il a fallu vérifier et changer d'outil.
+- **Des propositions imparfaites.** Une première version du hook de chargement déclenchait un avertissement du linter, et le placement proposé pour les textes de seuil de la courbe était inversé. Les contrôles automatiques et la vérification visuelle les ont repérés.
+- **Des consignes parfois floues**, notamment pour dessiner les diagrammes ou ranger les captures. Il fallait les faire préciser avant de les appliquer.
+- **Elle ne remplace pas la compréhension.** Chaque choix devait pouvoir être justifié devant un jury : je n'ai gardé que ce que je savais expliquer.
+
+## Difficultés et corrections
+
+- **La page NOAA ne propose pas de fichier brut.** Elle contient onze tableaux HTML, dont l'en-tête du tableau utile est répété tous les dix ans. La transformation identifie le bon tableau par sa première ligne et retire les en-têtes répétés.
+- **Docker Desktop sur macOS 12.** Il ne peut plus être mis à jour, et il a planté une fois au redémarrage. Il fallait attendre son arrêt complet avant de le relancer.
+- **Des erreurs de manipulation**, chacune réglée en lisant le message d'erreur jusqu'au bout : une commande lancée depuis le mauvais dossier, un environnement Python non activé, un composant enregistré en `.ts` au lieu de `.tsx`, une accolade manquante.
+- **Trois anomalies corrigées**, décrites dans la section 6 : l'interprétation incomplète d'une période mixte, le contraste des textes de seuil et le débordement de la courbe sur mobile.
+
+Avec plus de temps, j'ajouterais la détection automatique des épisodes, le RONI comme second indice, un test de bout en bout dans un navigateur, et un import planifié.
+
+## Sources
+
+Données et science :
+
+- NOAA Climate Prediction Center, Oceanic Niño Index, version 6 : https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/oni/v6/index.php
+- NOAA Climate Prediction Center, Relative Oceanic Niño Index : https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/
+- National Weather Service, communiqué 26-05 sur l'adoption du RONI : https://www.weather.gov/media/notification/pdf_2026/pns26-05_Relative_ONI.pdf
+
+Référentiels et documentation technique :
+
+- France compétences, RNCP 36146 : https://www.francecompetences.fr/recherche/rncp/36146
+- W3C, Web Content Accessibility Guidelines (WCAG) 2.1 : https://www.w3.org/TR/WCAG21/
+- Documentations officielles : FastAPI, SQLAlchemy, Alembic, Pandas, React, Vite, Recharts, Docker Compose (https://docs.docker.com/compose/) et Caddy (https://caddyserver.com/docs/).
