@@ -238,3 +238,54 @@ Notation : clé primaire en gras, `#` pour une clé étrangère.
 **Migrations.** Alembic crée le schéma à partir des modèles SQLAlchemy. Toute évolution future de structure passera par une nouvelle migration versionnée, réversible.
 
 **Provenance.** Une observation renvoie à son import (date, copie brute, empreinte), qui renvoie à l'indice (ONI, °C, ERSSTv6), qui renvoie à la source (NOAA CPC et l'adresse de sa page).
+
+<div style="page-break-after: always;"></div>
+
+# 5. Organisation du projet
+
+## Backlog
+
+Le backlog détaillé compte 33 tâches, de T01 à T33, chacune reliée à une user story, avec une priorité, une estimation et un statut (`docs/conception/organisation.md`). Regroupées par étape :
+
+- **Conception** (T01 à T07) : user stories, parcours, diagrammes, wireframes, backlog et risques.
+- **Base de données et ETL** (T08 à T13) : PostgreSQL dans Docker, modèles et migration, extraction, transformation, chargement et test des données.
+- **API** (T14 à T19) : application FastAPI, routes et validation, comparaison, CORS, test de l'API et diagramme de séquence.
+- **Interface** (T21 à T27) : projet Vite, client API, hook de chargement, composants, comparaison, accessibilité et test de l'interface.
+- **Livraison** (T28 à T33) : Docker Compose, qualité du code, correction d'une anomalie, README, dossier et préparation de l'oral.
+
+Toutes les tâches sont réalisées, sauf T20, la détection automatique des épisodes, classée Could et abandonnée comme prévu.
+
+## Planning sur cinq jours
+
+- **Jour 1** : installation, conception complète et lancement de la base de données.
+- **Jour 2** : modèles, migration, ETL complet et test des données.
+- **Jour 3** : API, validation des entrées, comparaison, CORS, test de l'API et diagramme de séquence.
+- **Jour 4** : interface, comparaison, vérifications d'accessibilité et test de l'interface.
+- **Jour 5** : Docker Compose, qualité, correction d'anomalie, README et dossier.
+
+L'ordre suit les dépendances : l'API a besoin de données réelles, et l'interface a besoin de routes qui fonctionnent. Le travail a été mené en sessions réparties sur plusieurs semaines, mais dans cet ordre et selon ce découpage.
+
+## Arbitrages
+
+- **La comparaison de périodes choisies avant la détection automatique.** La comparaison suffit au MVP ; la détection était une extension, abandonnée en premier quand le temps a manqué.
+- **L'ONI plutôt que le RONI.** C'est l'indice de référence des études historiques, et le RONI pourrait être ajouté sans changer le modèle.
+- **L'import en ligne de commande plutôt qu'une interface d'administration.** Un seul administrateur, et pas d'authentification à sécuriser.
+- **oxlint plutôt qu'ESLint**, contrairement au plan initial. Le modèle Vite actuel installe TypeScript 7, que le module TypeScript d'ESLint ne prend pas encore en charge. oxlint, fourni par Vite, joue le même rôle sans configuration.
+- **L'API et l'interface lancées hors Docker pendant le développement**, pour profiter du rechargement instantané. Docker Compose sert à la démonstration complète.
+- **La copie brute de la page NOAA conservée dans le dépôt** : environ 160 Ko par import, en échange de la traçabilité et de tests qui fonctionnent hors ligne.
+
+## Risques
+
+- **La NOAA modifie sa page ou la rend inaccessible.** Parade : copie brute datée, tests sur cette copie, import en échec tracé sans toucher aux données en base.
+- **La NOAA révise des valeurs récentes**, ce qui est certain. Parade : l'import met à jour la valeur au lieu de créer un doublon, et la compte dans le bilan.
+- **Docker Desktop ne peut plus être mis à jour sur mon Mac (macOS 12).** Parade : la version installée suffit au projet. Un plantage au redémarrage de Docker s'est produit, réglé en attendant l'arrêt complet avant de relancer.
+- **Plusieurs outils découverts en même temps** (SQLAlchemy, Alembic, FastAPI, Recharts). Parade : avancer par petites étapes, avec un commit à chaque étape qui fonctionne.
+- **Un dépassement de temps sur l'interface**, la journée la plus chargée. Parade : abandon de l'extension, ce qui s'est produit.
+- **Une interprétation scientifique abusive.** Parade : texte généré uniquement à partir des mesures, sans prévision ni « Super El Niño », avec un encadré des limites.
+- **La fuite d'un secret.** Parade : fichier `.env` ignoré par Git, et modèle `.env.example` sans mot de passe.
+
+## Outils et suivi
+
+Outils : VS Code, Git et GitHub, draw.io, Docker Desktop, et Claude Code comme assistant (voir la section 8).
+
+Le suivi s'appuie sur les statuts du backlog, mis à jour au fil du projet, et sur l'historique Git : 44 commits sur 14 journées de travail, du 28 octobre au 19 novembre 2026, au format Conventional Commits (`feat`, `fix`, `test`, `docs`, `style`, `chore`). Chaque étape qui fonctionne a donné lieu à au moins un commit, et chaque test exigé a sa capture dans `docs/screenshots/`.
